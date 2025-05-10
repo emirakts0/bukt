@@ -3,82 +3,97 @@ package service
 import (
 	"context"
 	"errors"
+	"key-value-store/internal/logger"
 	"key-value-store/internal/model"
-	"sync"
+	"key-value-store/internal/store"
 	"time"
+
+	"go.uber.org/zap"
 )
 
 //todo: expire date geçen kayıtları düzenli silecek bir goroutine ekle
-//todo: loglama ekle, uber-go/zap kullanabiliriz
-//todo: password doğrulaması ve middleware ekle
-//todo: store edilen mapi ayrıca bir pakette tutabiliriz, burası sadece işlem için kullanılır.
+//todo: value değeri sadece string değil, int, float, boolean vs. olabilir.
+//todo: requestleri takip etmek için logda correlation id gezdir.
 //todo: ...
 
 var (
 	ErrKeyNotFound      = errors.New("key not found")
-	ErrKeyExpired       = errors.New("key expired")
 	ErrInvalidTTL       = errors.New("invalid TTL")
 	ErrKeyAlreadyExists = errors.New("key already exists")
 )
 
-type StorageService struct {
-	store map[string]model.StorageEntry
-	mu    sync.RWMutex
+type StorageService interface {
+	Set(ctx context.Context, key, value string, ttl int64) (model.StorageEntry, error)
+	Get(ctx context.Context, key string) (model.StorageEntry, error)
+	Delete(ctx context.Context, key string) error
 }
 
-func NewStorageService() *StorageService {
-	return &StorageService{
-		store: make(map[string]model.StorageEntry),
+type storageService struct {
+	store store.MemoryStore
+	log   *zap.SugaredLogger
+}
+
+func NewStorageService() StorageService {
+	return &storageService{
+		store: store.NewMemoryStore(),
+		log:   logger.GetSugared(),
 	}
 }
 
-func (s *StorageService) Set(ctx context.Context, key, value string, ttl int64) (model.StorageEntry, error) {
-	s.mu.Lock()
-	defer s.mu.Unlock()
+func (s *storageService) Set(ctx context.Context, key, value string, ttl int64) (model.StorageEntry, error) {
+	s.log.Debugw("Attempting to set key-value pair", "key", key, "ttl", ttl)
 
 	if ttl <= 0 {
+		s.log.Warnw("Invalid TTL provided", "key", key, "ttl", ttl)
 		return model.StorageEntry{}, ErrInvalidTTL
 	}
 
-	if _, exists := s.store[key]; exists {
+	if s.store.Exists(key) {
+		s.log.Warnw("Key already exists",
+			"key", key,
+		)
 		return model.StorageEntry{}, ErrKeyAlreadyExists
 	}
 
+	now := time.Now()
 	entry := model.StorageEntry{
 		Key:       key,
 		Value:     value,
-		ExpiresAt: time.Now().Add(time.Duration(ttl) * time.Second),
+		CreatedAt: now,
+		ExpiresAt: now.Add(time.Duration(ttl) * time.Second),
 	}
 
-	s.store[key] = entry
+	s.store.Set(key, entry)
+	s.log.Infow("Successfully set key-value pair", "key", key, "expires_at", entry.ExpiresAt)
 	return entry, nil
 }
 
-func (s *StorageService) Get(ctx context.Context, key string) (model.StorageEntry, error) {
-	s.mu.RLock()
-	defer s.mu.RUnlock()
+func (s *storageService) Get(ctx context.Context, key string) (model.StorageEntry, error) {
+	s.log.Debugw("Attempting to get value", "key", key)
 
-	entry, exists := s.store[key]
+	entry, exists := s.store.Get(key)
 	if !exists {
+		s.log.Warnw("Key not found", "key", key)
 		return model.StorageEntry{}, ErrKeyNotFound
 	}
 
 	if entry.IsExpired() {
-		delete(s.store, key)
-		return model.StorageEntry{}, ErrKeyExpired
+		s.log.Warnw("Key has expired", "key", key, "expires_at", entry.ExpiresAt)
+		return model.StorageEntry{}, ErrKeyNotFound
 	}
 
+	s.log.Infow("Successfully retrieved value", "key", key, "expires_at", entry.ExpiresAt)
 	return entry, nil
 }
 
-func (s *StorageService) Delete(ctx context.Context, key string) error {
-	s.mu.Lock()
-	defer s.mu.Unlock()
+func (s *storageService) Delete(ctx context.Context, key string) error {
+	s.log.Debugw("Attempting to delete key", "key", key)
 
-	if _, exists := s.store[key]; !exists {
+	if !s.store.Delete(key) {
+		s.log.Warnw("Key not found for deletion", "key", key)
 		return ErrKeyNotFound
 	}
 
-	delete(s.store, key)
+	s.log.Infow("Successfully deleted key", "key", key)
 	return nil
 }

@@ -1,0 +1,10 @@
+auth:
+  username: emir
+  password: emir
+
+server:
+  port: 8080
+
+logging:
+  environment: development #production, development
+  level: info

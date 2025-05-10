@@ -3,17 +3,24 @@ package http
 import (
 	"github.com/gin-gonic/gin"
 	"key-value-store/internal/transport/http/handler"
+	"key-value-store/internal/transport/http/middleware"
 )
 
 func NewRouter(kvHandler *handler.KVHandler) *gin.Engine {
-	router := gin.Default()
+	// Disable Gin's default logger
+	gin.SetMode(gin.ReleaseMode)
+	gin.DisableConsoleColor()
 
-	setupRoutes(router, kvHandler)
+	router := gin.New()
 
-	return router
-}
+	// Add our custom logger middleware
+	router.Use(middleware.Logger())
+	router.Use(middleware.CorrelationMiddleware())
+	router.Use(middleware.AuthMiddleware())
 
-func setupRoutes(router *gin.Engine, kvHandler *handler.KVHandler) *gin.RouterGroup {
+	// Add recovery middleware
+	router.Use(gin.Recovery())
+
 	api := router.Group("/api")
 	{
 		kv := api.Group("/kv")
@@ -23,5 +30,6 @@ func setupRoutes(router *gin.Engine, kvHandler *handler.KVHandler) *gin.RouterGr
 			kv.DELETE("/:key", kvHandler.Delete)
 		}
 	}
-	return api
+
+	return router
 }

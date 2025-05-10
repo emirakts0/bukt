@@ -5,6 +5,7 @@ import "time"
 type StorageEntry struct {
 	Key       string
 	Value     string
+	CreatedAt time.Time
 	ExpiresAt time.Time
 }
 
