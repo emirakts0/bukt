@@ -2,7 +2,6 @@ package main
 
 import (
 	"fmt"
-	"go.uber.org/zap"
 	"key-value-store/internal/config"
 	"key-value-store/internal/logger"
 	"key-value-store/internal/service"
@@ -19,25 +18,18 @@ func main() {
 		Environment: configs.Logging.Environment,
 		LogLevel:    configs.Logging.Level,
 	})
-	log := logger.Get()
+	log := logger.GetSugared()
 	defer logger.Sync()
 
-	log.Info("Starting Lyko Key-Value Store...",
-		zap.Int("port", configs.Server.Port),
-		zap.String("environment", configs.Logging.Environment),
-	)
+	log.Info("Starting Lyko Key-Value Store...", "port", configs.Server.Port, "environment", configs.Logging.Environment)
 
 	storageService := service.NewStorageService()
 	kvHandler := handler.NewKVHandler(storageService)
 	router := http.NewRouter(kvHandler)
 
 	// Start server
-	log.Info("Server is starting",
-		zap.String("address", fmt.Sprintf(":%d", configs.Server.Port)),
-	)
+	log.Info("Server is starting", "address", fmt.Sprintf(":%d", configs.Server.Port))
 	if err := router.Run(":" + strconv.Itoa(configs.Server.Port)); err != nil {
-		log.Fatal("Failed to start server",
-			zap.Error(err),
-		)
+		log.Fatal("Failed to start server", err)
 	}
 }

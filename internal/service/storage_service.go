@@ -13,7 +13,7 @@ import (
 
 //todo: expire date geçen kayıtları düzenli silecek bir goroutine ekle
 //todo: value değeri sadece string değil, int, float, boolean vs. olabilir.
-//todo: requestleri takip etmek için logda correlation id gezdir.
+//todo: requestleri takip etmek için logda correlation id görelim.
 //todo: ...
 
 var (
@@ -23,7 +23,7 @@ var (
 )
 
 type StorageService interface {
-	Set(ctx context.Context, key, value string, ttl int64) (model.StorageEntry, error)
+	Set(ctx context.Context, key, value string, ttl int64, singleRead bool) (model.StorageEntry, error)
 	Get(ctx context.Context, key string) (model.StorageEntry, error)
 	Delete(ctx context.Context, key string) error
 }
@@ -40,8 +40,8 @@ func NewStorageService() StorageService {
 	}
 }
 
-func (s *storageService) Set(ctx context.Context, key, value string, ttl int64) (model.StorageEntry, error) {
-	s.log.Debugw("Attempting to set key-value pair", "key", key, "ttl", ttl)
+func (s *storageService) Set(ctx context.Context, key, value string, ttl int64, singleRead bool) (model.StorageEntry, error) {
+	s.log.Debugw("Attempting to set key-value pair", "key", key, "ttl", ttl, "single_read", singleRead)
 
 	if ttl <= 0 {
 		s.log.Warnw("Invalid TTL provided", "key", key, "ttl", ttl)
@@ -49,22 +49,21 @@ func (s *storageService) Set(ctx context.Context, key, value string, ttl int64) 
 	}
 
 	if s.store.Exists(key) {
-		s.log.Warnw("Key already exists",
-			"key", key,
-		)
+		s.log.Warnw("Key already exists", "key", key)
 		return model.StorageEntry{}, ErrKeyAlreadyExists
 	}
 
 	now := time.Now()
 	entry := model.StorageEntry{
-		Key:       key,
-		Value:     value,
-		CreatedAt: now,
-		ExpiresAt: now.Add(time.Duration(ttl) * time.Second),
+		Key:        key,
+		Value:      value,
+		CreatedAt:  now,
+		ExpiresAt:  now.Add(time.Duration(ttl) * time.Second),
+		SingleRead: singleRead,
 	}
 
 	s.store.Set(key, entry)
-	s.log.Infow("Successfully set key-value pair", "key", key, "expires_at", entry.ExpiresAt)
+	s.log.Infow("Successfully set key-value pair", "key", key, "expires_at", entry.ExpiresAt, "single_read", singleRead)
 	return entry, nil
 }
 
@@ -82,7 +81,13 @@ func (s *storageService) Get(ctx context.Context, key string) (model.StorageEntr
 		return model.StorageEntry{}, ErrKeyNotFound
 	}
 
-	s.log.Infow("Successfully retrieved value", "key", key, "expires_at", entry.ExpiresAt)
+	// If the entry is single-read, delete it after reading
+	if entry.SingleRead {
+		s.store.Delete(key)
+		s.log.Infow("Deleted single-read key after reading", "key", key)
+	}
+
+	s.log.Infow("Successfully retrieved value", "key", key, "expires_at", entry.ExpiresAt, "single_read", entry.SingleRead)
 	return entry, nil
 }
 

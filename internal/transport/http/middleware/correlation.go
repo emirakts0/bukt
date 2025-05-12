@@ -19,9 +19,7 @@ func CorrelationMiddleware() gin.HandlerFunc {
 		}
 
 		c.Set("correlation_id", correlationID)
-
 		c.Header(CorrelationIDHeader, correlationID)
-
 		c.Next()
 	}
 }

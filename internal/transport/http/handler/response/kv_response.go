@@ -6,7 +6,6 @@ import (
 )
 
 type KVResponse struct {
-	Message   string `json:"message"`
 	Key       string `json:"key,omitempty"`
 	Value     string `json:"value,omitempty"`
 	CreatedAt string `json:"created_at,omitempty"`
@@ -17,10 +16,9 @@ type ErrorResponse struct {
 	Error string `json:"error"`
 }
 
-func NewKVResponse(message, key, value string, createdAt, expiresAt time.Time) KVResponse {
+func NewKVResponse(key, value string, createdAt, expiresAt time.Time) KVResponse {
 	formatter := util.NewTimeFormatter()
 	return KVResponse{
-		Message:   message,
 		Key:       key,
 		Value:     value,
 		CreatedAt: formatter.FormatTime(createdAt),
