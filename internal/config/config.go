@@ -1,67 +1,85 @@
 package config
 
 import (
-	"fmt"
-	"github.com/spf13/viper"
+	"os"
+	"strconv"
+	"strings"
 	"sync"
 )
 
+const (
+	// Environment variable keys
+	EnvAuthUsername       = "AUTH_USERNAME"
+	EnvAuthPassword       = "AUTH_PASSWORD"
+	EnvServerPort         = "SERVER_PORT"
+	EnvLoggingEnvironment = "LOGGING_ENVIRONMENT"
+	EnvLoggingLevel       = "LOGGING_LEVEL"
+
+	// Default values
+	DefaultAuthUsername       = "emir"
+	DefaultAuthPassword       = "emir"
+	DefaultServerPort         = 8080
+	DefaultLoggingEnvironment = "development"
+	DefaultLoggingLevel       = "debug"
+)
+
 var (
-	config      *Config
-	configOnce  sync.Once
-	defaultPath = "./configs/config.yaml"
+	config     *Config
+	configOnce sync.Once
 )
 
 type Config struct {
-	Auth    AuthConfig    `mapstructure:"auth"`
-	Server  ServerConfig  `mapstructure:"server"`
-	Logging LoggingConfig `mapstructure:"logging"`
+	Auth    AuthConfig
+	Server  ServerConfig
+	Logging LoggingConfig
 }
 
 type AuthConfig struct {
-	Username string `mapstructure:"username"`
-	Password string `mapstructure:"password"`
+	Username string
+	Password string
 }
 
 type ServerConfig struct {
-	Port int `mapstructure:"port"`
+	Port int
 }
 
 type LoggingConfig struct {
-	Environment string `mapstructure:"environment"`
-	Level       string `mapstructure:"level"`
+	Environment string
+	Level       string
 }
 
-// Get returns the singleton instance of Config
 func Get() *Config {
 	configOnce.Do(func() {
-		config = &Config{}
-		if err := loadConfig(); err != nil {
-			panic(fmt.Sprintf("Failed to load configuration: %v", err))
+		config = &Config{
+			Auth: AuthConfig{
+				Username: getEnv(EnvAuthUsername, DefaultAuthUsername),
+				Password: getEnv(EnvAuthPassword, DefaultAuthPassword),
+			},
+			Server: ServerConfig{
+				Port: getEnvAsInt(EnvServerPort, DefaultServerPort),
+			},
+			Logging: LoggingConfig{
+				Environment: getEnv(EnvLoggingEnvironment, DefaultLoggingEnvironment),
+				Level:       getEnv(EnvLoggingLevel, DefaultLoggingLevel),
+			},
 		}
 	})
 	return config
 }
 
-func loadConfig() error {
-	viper.SetConfigFile(defaultPath)
-	viper.SetConfigType("yaml")
-
-	viper.AutomaticEnv()
-
-	viper.SetDefault("server.port", 8080)
-	viper.SetDefault("auth.username", "admin")
-	viper.SetDefault("auth.password", "admin")
-	viper.SetDefault("logging.environment", "development")
-	viper.SetDefault("logging.level", "info")
-
-	if err := viper.ReadInConfig(); err != nil {
-		return fmt.Errorf("failed to read configs file: %w", err)
+func getEnv(key, defaultValue string) string {
+	if value, exists := os.LookupEnv(key); exists {
+		return value
 	}
+	return defaultValue
+}
 
-	if err := viper.Unmarshal(config); err != nil {
-		return fmt.Errorf("failed to unmarshal configs: %w", err)
+func getEnvAsInt(key string, defaultValue int) int {
+	if value, exists := os.LookupEnv(key); exists {
+		intValue, err := strconv.Atoi(strings.TrimSpace(value))
+		if err == nil {
+			return intValue
+		}
 	}
-
-	return nil
+	return defaultValue
 }

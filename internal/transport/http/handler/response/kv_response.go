@@ -1,7 +1,6 @@
 package response
 
 import (
-	"key-value-store/internal/util"
 	"time"
 )
 
@@ -17,11 +16,10 @@ type ErrorResponse struct {
 }
 
 func NewKVResponse(key, value string, createdAt, expiresAt time.Time) KVResponse {
-	formatter := util.NewTimeFormatter()
 	return KVResponse{
 		Key:       key,
 		Value:     value,
-		CreatedAt: formatter.FormatTime(createdAt),
-		ExpiresAt: formatter.FormatTime(expiresAt),
+		CreatedAt: createdAt.Format(time.RFC3339),
+		ExpiresAt: expiresAt.Format(time.RFC3339),
 	}
 }
