@@ -33,7 +33,7 @@ func (h *KVHandler) Create(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	_, err := h.service.Set(req.Key, req.Value, req.TTL, req.SingleRead)
+	_, err := h.service.Set(r.Context(), req.Key, req.Value, req.TTL, req.SingleRead)
 	if err != nil {
 		util.WriteBadRequest(w, err.Error())
 		return
@@ -49,7 +49,7 @@ func (h *KVHandler) Get(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	entry, err := h.service.Get(key)
+	entry, err := h.service.Get(r.Context(), key)
 	if err != nil {
 		util.WriteNotFound(w, err.Error())
 		return
@@ -70,7 +70,7 @@ func (h *KVHandler) Delete(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	if err := h.service.Delete(key); err != nil {
+	if err := h.service.Delete(r.Context(), key); err != nil {
 		util.WriteNotFound(w, err.Error())
 		return
 	}

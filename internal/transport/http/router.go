@@ -16,8 +16,8 @@ func NewRouter(kvHandler *handler.KVHandler) *Router {
 
 	commonMiddleware := []middleware.Middleware{
 		middleware.Recovery,
+		middleware.Correlation,
 		middleware.Logger,
-		//middleware.Correlation,
 		middleware.Auth,
 	}
 

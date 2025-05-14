@@ -14,6 +14,7 @@ func Logger(next http.Handler) http.Handler {
 		method := r.Method
 		clientIP := r.RemoteAddr
 		userAgent := r.UserAgent()
+		correlationID := r.Context().Value(correlationIDKey).(string)
 
 		rw := &responseWriter{ResponseWriter: w, statusCode: http.StatusOK}
 		next.ServeHTTP(rw, r)
@@ -21,22 +22,23 @@ func Logger(next http.Handler) http.Handler {
 		latency := time.Since(start)
 
 		attrs := []any{
+			slog.String("correlation-id", correlationID),
 			slog.String("method", method),
 			slog.String("path", path),
 			slog.String("query", query),
 			slog.String("ip", clientIP),
 			slog.String("user-agent", userAgent),
-			slog.Int64("latency", latency.Microseconds()),
+			slog.Int64("latency_ns", latency.Nanoseconds()),
 			slog.Int("status", rw.statusCode),
 		}
 
 		switch {
 		case rw.statusCode >= 500:
-			slog.Error("-> REQUEST", attrs...)
+			slog.Error("REQUEST", attrs...)
 		case rw.statusCode >= 400:
-			slog.Warn("-> REQUEST", attrs...)
+			slog.Warn("REQUEST", attrs...)
 		default:
-			slog.Info("-> REQUEST", attrs...)
+			slog.Info("REQUEST", attrs...)
 		}
 	})
 }
