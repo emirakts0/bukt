@@ -1,7 +1,6 @@
 package service
 
 import (
-	"context"
 	"errors"
 	"key-value-store/internal/logger"
 	"key-value-store/internal/model"
@@ -11,9 +10,16 @@ import (
 	"go.uber.org/zap"
 )
 
+//todo: sadece standard library kullanacak biçime geçirelim.
 //todo: expire date geçen kayıtları düzenli silecek bir goroutine ekle
 //todo: value değeri sadece string değil, int, float, boolean vs. olabilir.
 //todo: requestleri takip etmek için logda correlation id görelim.
+//todo: performansı test et, ekstra depolama özellikleri ekle. Veri kaybının önlenmesi vb için. tek mapde tutuluyor her şey cok yetersiz ve basit şuanda.
+//todo: ayrıca servis işlem kısmı ile handlerları daha keskin bir biçimde ayır, loglamaları da ona göre ayarla. daha sonradan farklı kanallardan erişim eklendiğinde aynı kod base kullanılacak.
+//todo: dosya isimlerini metot ve değişken isimlerini daha iyi design et, web servis havasını bir nebze azalt.
+//todo: healthcheck endpointi ekle, depolama bilgileri vb vb gibi şeyler için.
+//todo: birden fazla faklı memory storelar olabilir. ayrıca bunlara queue özelliği de ekle, istenirse queue olarak kullanılabilsin.
+//todo: auth kısmını da bunlara göre yenilemek gerek, hangi kovaya kim erişebilir konusunu netleştirmek için.
 //todo: ...
 
 var (
@@ -22,10 +28,10 @@ var (
 	ErrKeyAlreadyExists = errors.New("key already exists")
 )
 
-type StorageService interface {
-	Set(ctx context.Context, key, value string, ttl int64, singleRead bool) (model.StorageEntry, error)
-	Get(ctx context.Context, key string) (model.StorageEntry, error)
-	Delete(ctx context.Context, key string) error
+type IStorageService interface {
+	Set(key, value string, ttl int64, singleRead bool) (model.StorageEntry, error)
+	Get(key string) (model.StorageEntry, error)
+	Delete(key string) error
 }
 
 type storageService struct {
@@ -33,14 +39,14 @@ type storageService struct {
 	log   *zap.SugaredLogger
 }
 
-func NewStorageService() StorageService {
+func NewStorageService() IStorageService {
 	return &storageService{
 		store: store.NewMemoryStore(),
 		log:   logger.GetSugared(),
 	}
 }
 
-func (s *storageService) Set(ctx context.Context, key, value string, ttl int64, singleRead bool) (model.StorageEntry, error) {
+func (s *storageService) Set(key, value string, ttl int64, singleRead bool) (model.StorageEntry, error) {
 	s.log.Debugw("Attempting to set key-value pair", "key", key, "ttl", ttl, "single_read", singleRead)
 
 	if ttl <= 0 {
@@ -67,7 +73,7 @@ func (s *storageService) Set(ctx context.Context, key, value string, ttl int64, 
 	return entry, nil
 }
 
-func (s *storageService) Get(ctx context.Context, key string) (model.StorageEntry, error) {
+func (s *storageService) Get(key string) (model.StorageEntry, error) {
 	s.log.Debugw("Attempting to get value", "key", key)
 
 	entry, exists := s.store.Get(key)
@@ -91,7 +97,7 @@ func (s *storageService) Get(ctx context.Context, key string) (model.StorageEntr
 	return entry, nil
 }
 
-func (s *storageService) Delete(ctx context.Context, key string) error {
+func (s *storageService) Delete(key string) error {
 	s.log.Debugw("Attempting to delete key", "key", key)
 
 	if !s.store.Delete(key) {

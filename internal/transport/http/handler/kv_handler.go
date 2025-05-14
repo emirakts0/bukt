@@ -16,11 +16,11 @@ import (
 )
 
 type KVHandler struct {
-	service service.StorageService
+	service service.IStorageService
 	log     *zap.SugaredLogger
 }
 
-func NewKVHandler(service service.StorageService) *KVHandler {
+func NewKVHandler(service service.IStorageService) *KVHandler {
 	return &KVHandler{
 		service: service,
 		log:     logger.GetSugared(),
@@ -37,7 +37,7 @@ func (h *KVHandler) Create(c *gin.Context) {
 		return
 	}
 
-	entry, err := h.service.Set(c.Request.Context(), req.Key, req.Value, req.TTL, req.SingleRead)
+	entry, err := h.service.Set(req.Key, req.Value, req.TTL, req.SingleRead)
 	if err != nil {
 		c.JSON(http.StatusBadRequest, response.ErrorResponse{Error: err.Error()})
 		return
@@ -56,7 +56,7 @@ func (h *KVHandler) Create(c *gin.Context) {
 func (h *KVHandler) Get(c *gin.Context) {
 	key := c.Param("key")
 
-	entry, err := h.service.Get(c.Request.Context(), key)
+	entry, err := h.service.Get(key)
 	if err != nil {
 		status := http.StatusInternalServerError
 		if errors.Is(err, service.ErrKeyNotFound) {
@@ -79,7 +79,7 @@ func (h *KVHandler) Get(c *gin.Context) {
 func (h *KVHandler) Delete(c *gin.Context) {
 	key := c.Param("key")
 
-	if err := h.service.Delete(c.Request.Context(), key); err != nil {
+	if err := h.service.Delete(key); err != nil {
 		status := http.StatusInternalServerError
 		if errors.Is(err, service.ErrKeyNotFound) {
 			status = http.StatusNotFound
