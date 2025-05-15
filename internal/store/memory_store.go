@@ -5,12 +5,12 @@ import (
 	"sync"
 )
 
-// MemoryStore is responsible only for storing and retrieving data
 type MemoryStore interface {
 	Set(key string, entry model.StorageEntry)
 	Get(key string) (model.StorageEntry, bool)
 	Delete(key string) bool
 	Exists(key string) bool
+	Keys() []string
 }
 
 type memoryStore struct {
@@ -18,7 +18,6 @@ type memoryStore struct {
 	mu    sync.RWMutex
 }
 
-// NewMemoryStore creates a new instance of memory store
 func NewMemoryStore() MemoryStore {
 	return &memoryStore{
 		store: make(map[string]model.StorageEntry),
@@ -53,4 +52,14 @@ func (s *memoryStore) Exists(key string) bool {
 	defer s.mu.RUnlock()
 	_, exists := s.store[key]
 	return exists
+}
+
+func (s *memoryStore) Keys() []string {
+	s.mu.RLock()
+	defer s.mu.RUnlock()
+	keys := make([]string, 0, len(s.store))
+	for key := range s.store {
+		keys = append(keys, key)
+	}
+	return keys
 }

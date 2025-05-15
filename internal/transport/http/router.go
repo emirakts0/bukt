@@ -1,35 +1,39 @@
 package http
 
 import (
-	"github.com/gin-gonic/gin"
 	"key-value-store/internal/transport/http/handler"
 	"key-value-store/internal/transport/http/middleware"
+	"net/http"
 )
 
-func NewRouter(kvHandler *handler.KVHandler) *gin.Engine {
-	// Disable Gin's default logger
-	gin.SetMode(gin.ReleaseMode)
-	gin.DisableConsoleColor()
+type Router struct {
+	server *http.Server
+	mux    *http.ServeMux
+}
 
-	router := gin.New()
+func NewRouter(kvHandler *handler.KVHandler) *Router {
+	mux := http.NewServeMux()
 
-	// Add our custom logger middleware
-	router.Use(middleware.Logger())
-	router.Use(middleware.CorrelationMiddleware())
-	router.Use(middleware.AuthMiddleware())
-
-	// Add recovery middleware
-	router.Use(gin.Recovery())
-
-	api := router.Group("/api")
-	{
-		kv := api.Group("/kv")
-		{
-			kv.POST("", kvHandler.Create)
-			kv.GET("/:key", kvHandler.Get)
-			kv.DELETE("/:key", kvHandler.Delete)
-		}
+	commonMiddleware := []middleware.Middleware{
+		middleware.Recovery,
+		middleware.Correlation,
+		middleware.Logger,
+		middleware.Auth,
 	}
 
-	return router
+	mux.HandleFunc("POST /api/kv", middleware.ApplyMiddleware(kvHandler.Create, commonMiddleware...))
+	mux.HandleFunc("GET /api/kv/{key}", middleware.ApplyMiddleware(kvHandler.Get, commonMiddleware...))
+	mux.HandleFunc("DELETE /api/kv/{key}", middleware.ApplyMiddleware(kvHandler.Delete, commonMiddleware...))
+
+	return &Router{
+		mux: mux,
+	}
+}
+
+func (r *Router) Run(addr string) error {
+	r.server = &http.Server{
+		Addr:    addr,
+		Handler: r.mux,
+	}
+	return r.server.ListenAndServe()
 }

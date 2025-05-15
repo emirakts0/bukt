@@ -1,25 +1,28 @@
 package middleware
 
 import (
-	"github.com/gin-gonic/gin"
+	"context"
 	"github.com/google/uuid"
+	"net/http"
 )
 
 const (
 	CorrelationIDHeader = "X-Correlation-ID"
+	correlationIDKey    = "correlation_id"
 )
 
-func CorrelationMiddleware() gin.HandlerFunc {
-	return func(c *gin.Context) {
-
-		correlationID := c.GetHeader(CorrelationIDHeader)
+func Correlation(next http.Handler) http.Handler {
+	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		correlationID := r.Header.Get(CorrelationIDHeader)
 
 		if correlationID == "" {
 			correlationID = uuid.New().String()
 		}
 
-		c.Set("correlation_id", correlationID)
-		c.Header(CorrelationIDHeader, correlationID)
-		c.Next()
-	}
+		ctx := context.WithValue(r.Context(), correlationIDKey, correlationID)
+
+		w.Header().Set(CorrelationIDHeader, correlationID)
+
+		next.ServeHTTP(w, r.WithContext(ctx))
+	})
 }

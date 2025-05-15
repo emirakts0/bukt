@@ -1,92 +1,81 @@
 package handler
 
 import (
-	_ "context"
-	"errors"
-	"fmt"
-	"github.com/gin-gonic/gin"
-	"go.uber.org/zap"
-	"key-value-store/internal/errs"
-	"key-value-store/internal/logger"
 	"key-value-store/internal/service"
 	"key-value-store/internal/transport/http/handler/request"
 	"key-value-store/internal/transport/http/handler/response"
 	"key-value-store/internal/util"
+	"log/slog"
 	"net/http"
 )
 
 type KVHandler struct {
 	service service.IStorageService
-	log     *zap.SugaredLogger
 }
 
 func NewKVHandler(service service.IStorageService) *KVHandler {
 	return &KVHandler{
 		service: service,
-		log:     logger.GetSugared(),
 	}
 }
 
-func (h *KVHandler) Create(c *gin.Context) {
+func (h *KVHandler) Create(w http.ResponseWriter, r *http.Request) {
 	var req request.CreateKVRequest
-	if err := c.ShouldBindJSON(&req); err != nil {
-		h.log.Warnw("Invalid request body", "error", err)
-		c.JSON(http.StatusBadRequest, gin.H{
-			"error": errs.FormatValidationError(err),
-		})
+
+	if err := util.ReadJSONBody(r, &req); err != nil {
+		util.WriteBadRequest(w, "Failed to read request body")
 		return
 	}
 
-	entry, err := h.service.Set(req.Key, req.Value, req.TTL, req.SingleRead)
+	if err := req.Validate(); err != nil {
+		slog.Warn("Invalid request", "error", err)
+		util.WriteBadRequest(w, err.Error())
+		return
+	}
+
+	_, err := h.service.Set(r.Context(), req.Key, req.Value, req.TTL, req.SingleRead)
 	if err != nil {
-		c.JSON(http.StatusBadRequest, response.ErrorResponse{Error: err.Error()})
+		util.WriteBadRequest(w, err.Error())
 		return
 	}
 
-	resp := fmt.Sprintf("Key-value pair stored successfully. Key: %s, Value: %s, CreatedAt: %s, ExpiresAt: %s",
-		entry.Key,
-		entry.Value,
-		util.NewTimeFormatter().FormatTime(entry.CreatedAt),
-		util.NewTimeFormatter().FormatTime(entry.ExpiresAt),
-	)
-
-	c.JSON(http.StatusCreated, resp)
+	util.WriteCreated(w, "Key-value pair stored successfully")
 }
 
-func (h *KVHandler) Get(c *gin.Context) {
-	key := c.Param("key")
-
-	entry, err := h.service.Get(key)
-	if err != nil {
-		status := http.StatusInternalServerError
-		if errors.Is(err, service.ErrKeyNotFound) {
-			status = http.StatusNotFound
-		}
-		c.JSON(status, response.ErrorResponse{Error: err.Error()})
+func (h *KVHandler) Get(w http.ResponseWriter, r *http.Request) {
+	key := r.PathValue("key")
+	if key == "" {
+		util.WriteBadRequest(w, "Key is required")
 		return
 	}
 
-	resp := response.NewKVResponse(
+	entry, err := h.service.Get(r.Context(), key)
+	if err != nil {
+		util.WriteNotFound(w, err.Error())
+		return
+	}
+
+	util.WriteOK(w, response.NewKVResponse(
 		entry.Key,
 		entry.Value,
 		entry.CreatedAt,
 		entry.ExpiresAt,
-	)
-
-	c.JSON(http.StatusOK, resp)
+	))
 }
 
-func (h *KVHandler) Delete(c *gin.Context) {
-	key := c.Param("key")
-
-	if err := h.service.Delete(key); err != nil {
-		status := http.StatusInternalServerError
-		if errors.Is(err, service.ErrKeyNotFound) {
-			status = http.StatusNotFound
-		}
-		c.JSON(status, response.ErrorResponse{Error: err.Error()})
+func (h *KVHandler) Delete(w http.ResponseWriter, r *http.Request) {
+	key := r.PathValue("key")
+	if key == "" {
+		util.WriteBadRequest(w, "Key is required")
 		return
 	}
 
-	c.JSON(http.StatusOK, fmt.Sprintf("Key deleted successfully Key: %s", key))
+	if err := h.service.Delete(r.Context(), key); err != nil {
+		util.WriteNotFound(w, err.Error())
+		return
+	}
+
+	util.WriteOK(w, map[string]string{
+		"message": "Key deleted successfully",
+	})
 }

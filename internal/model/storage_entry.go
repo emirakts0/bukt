@@ -5,6 +5,7 @@ import "time"
 type StorageEntry struct {
 	Key        string
 	Value      string
+	TTL        int64
 	CreatedAt  time.Time
 	ExpiresAt  time.Time
 	SingleRead bool
