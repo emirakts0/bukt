@@ -5,15 +5,18 @@ import (
 	"errors"
 	"key-value-store/internal/model"
 	"key-value-store/internal/store"
+	"key-value-store/internal/transport/http/middleware"
 	"log/slog"
 	"time"
 )
 
-//todo: expire date geçen kayıtları düzenli silecek bir goroutine ekle
 //todo: value değeri sadece string değil, int, float, boolean vs. olabilir.
 //todo: requestleri takip etmek için logda correlation id görelim.
-//todo: performansı test et, ekstra depolama özellikleri ekle. Veri kaybının önlenmesi vb için. tek mapde tutuluyor her şey cok yetersiz ve basit şuanda.
+//todo: performansı test et, ekstra depolama özellikleri ekle.
+// Veri kaybının önlenmesi vb için. tek mapde tutuluyor her şey cok yetersiz ve basit şuanda.
+//todo: model paketinin adını değiştir, entry falan olabilir.
 //todo: dosya isimlerini metot ve değişken isimlerini daha iyi design et, web servis havasını bir nebze azalt.
+//todo: 2. bir transport katmanı ekle, tcp veya farklı bir alternatif olabilir.
 //todo: healthcheck endpointi ekle, depolama bilgileri vb vb gibi şeyler için.
 //todo: birden fazla faklı memory storelar olabilir. ayrıca bunlara queue özelliği de ekle, istenirse queue olarak kullanılabilsin.
 //todo: auth kısmını da bunlara göre yenilemek gerek, hangi kovaya kim erişebilir konusunu netleştirmek için.
@@ -48,15 +51,17 @@ func NewStorageService() IStorageService {
 }
 
 func (s *storageService) Set(ctx context.Context, key, value string, ttl int64, singleRead bool) (model.StorageEntry, error) {
-	slog.Debug("Attempting to set key-value pair", "key", key, "ttl", ttl, "single_read", singleRead)
+	crrid := middleware.CorrelationID(ctx)
+
+	slog.Debug("Attempting to set key-value pair", "crr-id", crrid, "key", key, "ttl", ttl, "single_read", singleRead)
 
 	if ttl <= 0 {
-		slog.Warn("Invalid TTL provided", "key", key, "ttl", ttl)
+		slog.Warn("Invalid TTL provided", "crr-id", crrid, "key", key, "ttl", ttl)
 		return model.StorageEntry{}, ErrInvalidTTL
 	}
 
 	if s.store.Exists(key) {
-		slog.Warn("Key already exists", "key", key)
+		slog.Warn("Key already exists", "crr-id", crrid, "key", key)
 		return model.StorageEntry{}, ErrKeyAlreadyExists
 	}
 
@@ -71,44 +76,49 @@ func (s *storageService) Set(ctx context.Context, key, value string, ttl int64, 
 	}
 
 	s.store.Set(key, entry)
-	slog.Info("Successfully set key-value pair", "key", key, "ttl", entry.TTL, "single_read", singleRead)
+	slog.Info("Successfully set key-value pair", "crr-id", crrid, "key", key, "ttl", entry.TTL, "single_read", singleRead)
 	return entry, nil
 }
 
 func (s *storageService) Get(ctx context.Context, key string) (model.StorageEntry, error) {
-	slog.Debug("Attempting to get value", "key", key)
+	crrid := middleware.CorrelationID(ctx)
+
+	slog.Debug("Attempting to get value", "crr-id", crrid, "key", key)
+
+	time.Sleep(3 * time.Second) // TODO Simulate
 
 	entry, exists := s.store.Get(key)
 	if !exists {
-		slog.Warn("Key not found", "key", key)
+		slog.Warn("Key not found", "crr-id", crrid, "key", key)
 		return model.StorageEntry{}, ErrKeyNotFound
 	}
 
 	if entry.IsExpired() {
-		slog.Warn("Key has expired", "key", key, "expires_at", entry.ExpiresAt.Format(time.RFC3339))
+		slog.Warn("Key has expired", "crr-id", crrid, "key", key, "expires_at", entry.ExpiresAt.Format(time.RFC3339))
 		s.store.Delete(key)
 		return model.StorageEntry{}, ErrKeyExpired
 	}
 
-	// If the entry is single-read, delete it after reading
 	if entry.SingleRead {
 		s.store.Delete(key)
-		slog.Info("Deleted single-read key after reading", "key", key, "single_read", entry.SingleRead)
+		slog.Info("Deleted single-read key after reading", "crr-id", crrid, "key", key, "single_read", entry.SingleRead)
 	}
 
-	slog.Info("Successfully retrieved value", "key", key, "single_read", entry.SingleRead)
+	slog.Info("Successfully retrieved value", "crr-id", crrid, "key", key, "single_read", entry.SingleRead)
 	return entry, nil
 }
 
 func (s *storageService) Delete(ctx context.Context, key string) error {
-	slog.Debug("Attempting to delete key", "key", key)
+	crrid := middleware.CorrelationID(ctx)
+
+	slog.Debug("Attempting to delete key", "crr-id", crrid, "key", key)
 
 	if !s.store.Delete(key) {
-		slog.Warn("Key not found for deletion", "key", key)
+		slog.Warn("Key not found for deletion", "crr-id", crrid, "key", key)
 		return ErrKeyNotFound
 	}
 
-	slog.Info("Successfully deleted key", "key", key)
+	slog.Info("Successfully deleted key", "crr-id", crrid, "key", key)
 	return nil
 }
 

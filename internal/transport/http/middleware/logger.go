@@ -14,7 +14,7 @@ func Logger(next http.Handler) http.Handler {
 		method := r.Method
 		clientIP := r.RemoteAddr
 		userAgent := r.UserAgent()
-		correlationID := r.Context().Value(correlationIDKey).(string)
+		correlationID := CorrelationID(r.Context())
 
 		rw := &responseWriter{ResponseWriter: w, statusCode: http.StatusOK}
 		next.ServeHTTP(rw, r)
@@ -22,7 +22,7 @@ func Logger(next http.Handler) http.Handler {
 		latency := time.Since(start)
 
 		attrs := []any{
-			slog.String("correlation-id", correlationID),
+			slog.String("crr-id", correlationID),
 			slog.String("method", method),
 			slog.String("path", path),
 			slog.String("query", query),

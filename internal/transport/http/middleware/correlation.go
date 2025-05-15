@@ -26,3 +26,10 @@ func Correlation(next http.Handler) http.Handler {
 		next.ServeHTTP(w, r.WithContext(ctx))
 	})
 }
+
+func CorrelationID(ctx context.Context) string {
+	if correlationID, ok := ctx.Value(correlationIDKey).(string); ok {
+		return correlationID
+	}
+	return ""
+}
