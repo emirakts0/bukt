@@ -1,6 +1,7 @@
 package logger
 
 import (
+	"github.com/phsym/console-slog"
 	"log/slog"
 	"os"
 	"sync"
@@ -15,22 +16,28 @@ type Config struct {
 	LogLevel    string
 }
 
-func Initialize(evironment, logLevel string) {
+func Initialize(cfg Config) {
 	once.Do(func() {
 		var handler slog.Handler
-		opts := &slog.HandlerOptions{
-			AddSource: true,
-			Level:     getLogLevel(logLevel),
-		}
 
-		if evironment == "production" {
-			handler = slog.NewJSONHandler(os.Stdout, opts)
+		//Dynamic
+		logLevel := &slog.LevelVar{}
+		logLevel.Set(getLogLevel(cfg.LogLevel))
+
+		if cfg.Environment == "production" {
+			handler = slog.NewJSONHandler(os.Stdout, &slog.HandlerOptions{
+				AddSource: false,
+				Level:     logLevel,
+			})
 		} else {
-			handler = NewPrettyHandler(getLogLevel(logLevel))
+			handler = console.NewHandler(os.Stdout, &console.HandlerOptions{
+				Level:     logLevel,
+				AddSource: true,
+			})
 		}
 
 		logger := slog.New(handler)
-		slog.SetDefault(logger) // Set as default logger for slog package
+		slog.SetDefault(logger)
 	})
 }
 

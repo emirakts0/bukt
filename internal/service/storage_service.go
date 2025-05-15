@@ -85,8 +85,6 @@ func (s *storageService) Get(ctx context.Context, key string) (model.StorageEntr
 
 	slog.Debug("Attempting to get value", "crr-id", crrid, "key", key)
 
-	time.Sleep(3 * time.Second) // TODO Simulate
-
 	entry, exists := s.store.Get(key)
 	if !exists {
 		slog.Warn("Key not found", "crr-id", crrid, "key", key)

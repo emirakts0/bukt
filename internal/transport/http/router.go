@@ -4,6 +4,13 @@ import (
 	"key-value-store/internal/transport/http/handler"
 	"key-value-store/internal/transport/http/middleware"
 	"net/http"
+	"time"
+)
+
+const (
+	readTimeout  = 5  // in seconds
+	writeTimeout = 10 // in seconds
+	idleTimeout  = 15 // in seconds
 )
 
 type Router struct {
@@ -32,8 +39,11 @@ func NewRouter(kvHandler *handler.KVHandler) *Router {
 
 func (r *Router) Run(addr string) error {
 	r.server = &http.Server{
-		Addr:    addr,
-		Handler: r.mux,
+		Addr:         addr,
+		Handler:      r.mux,
+		ReadTimeout:  time.Duration(readTimeout) * time.Second,
+		WriteTimeout: time.Duration(writeTimeout) * time.Second,
+		IdleTimeout:  time.Duration(idleTimeout) * time.Second,
 	}
 	return r.server.ListenAndServe()
 }

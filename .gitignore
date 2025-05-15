@@ -23,7 +23,4 @@ go.work.sum
 
 # env file
 .env
-/.idea/.gitignore
-/.idea/key-value-store.iml
-/.idea/modules.xml
-/.idea/vcs.xml
+/.idea

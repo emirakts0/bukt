@@ -14,7 +14,10 @@ import (
 func main() {
 	configs := config.Get()
 
-	logger.Initialize(configs.Logging.Environment, configs.Logging.Level)
+	logger.Initialize(logger.Config{
+		Environment: configs.Logging.Environment,
+		LogLevel:    configs.Logging.Level,
+	})
 
 	slog.Info("Starting Lyko Key-Value Store.")
 	slog.Info("Server starting...", "port", configs.Server.Port, "environment", configs.Logging.Environment, "log level", configs.Logging.Level)

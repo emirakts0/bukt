@@ -19,8 +19,8 @@ const (
 	DefaultAuthUsername       = "emir"
 	DefaultAuthPassword       = "emir"
 	DefaultServerPort         = 8080
-	DefaultLoggingEnvironment = "development"
-	DefaultLoggingLevel       = "debug"
+	DefaultLoggingEnvironment = "production"
+	DefaultLoggingLevel       = "info"
 )
 
 var (
