@@ -4,7 +4,7 @@ import (
 	"key-value-store/internal/service"
 	"key-value-store/internal/transport/http/handler/request"
 	"key-value-store/internal/transport/http/handler/response"
-	"key-value-store/internal/util"
+	"key-value-store/internal/util/http_util"
 	"log/slog"
 	"net/http"
 )
@@ -22,40 +22,41 @@ func NewKVHandler(service service.IStorageService) *KVHandler {
 func (h *KVHandler) Create(w http.ResponseWriter, r *http.Request) {
 	var req request.CreateKVRequest
 
-	if err := util.ReadJSONBody(r, &req); err != nil {
-		util.WriteBadRequest(w, "Failed to read request body")
+	if err := http_util.ReadJSONBody(r, &req, w); err != nil {
+		http_util.WriteBadRequest(w, "Invalid request.")
 		return
 	}
 
 	if err := req.Validate(); err != nil {
 		slog.Warn("Invalid request", "error", err)
-		util.WriteBadRequest(w, err.Error())
+		http_util.WriteBadRequest(w, err.Error())
 		return
 	}
 
 	_, err := h.service.Set(r.Context(), req.Key, req.Value, req.TTL, req.SingleRead)
 	if err != nil {
-		util.WriteBadRequest(w, err.Error())
+		http_util.WriteBadRequest(w, err.Error())
 		return
 	}
 
-	util.WriteCreated(w, "Key-value pair stored successfully")
+	http_util.WriteCreated(w, "Key-value pair stored successfully")
 }
 
 func (h *KVHandler) Get(w http.ResponseWriter, r *http.Request) {
 	key := r.PathValue("key")
 	if key == "" {
-		util.WriteBadRequest(w, "Key is required")
+		http_util.WriteBadRequest(w, "Key is required")
 		return
 	}
 
 	entry, err := h.service.Get(r.Context(), key)
 	if err != nil {
-		util.WriteNotFound(w, err.Error())
+		//todo handlerda handle ederken türe daha cok dikkat edilebilir.
+		http_util.WriteNotFound(w, err.Error())
 		return
 	}
 
-	util.WriteOK(w, response.NewKVResponse(
+	http_util.WriteOK(w, response.NewKVResponse(
 		entry.Key,
 		entry.Value,
 		entry.CreatedAt,
@@ -66,16 +67,14 @@ func (h *KVHandler) Get(w http.ResponseWriter, r *http.Request) {
 func (h *KVHandler) Delete(w http.ResponseWriter, r *http.Request) {
 	key := r.PathValue("key")
 	if key == "" {
-		util.WriteBadRequest(w, "Key is required")
+		http_util.WriteBadRequest(w, "Key is required")
 		return
 	}
 
 	if err := h.service.Delete(r.Context(), key); err != nil {
-		util.WriteNotFound(w, err.Error())
+		http_util.WriteNotFound(w, err.Error())
 		return
 	}
 
-	util.WriteOK(w, map[string]string{
-		"message": "Key deleted successfully",
-	})
+	http_util.WriteOK(w, "Key deleted successfully")
 }

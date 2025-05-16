@@ -1,0 +1,22 @@
+version: '3.8'
+
+services:
+  key-value-store:
+    image: key-value-store
+    ports:
+      - "8080:8080"
+    environment:
+      AUTH_USERNAME: emir
+      AUTH_PASSWORD: emir
+      SERVER_PORT: 8080
+      LOGGING_ENVIRONMENT: development
+      LOGGING_LEVEL: debug
+      SHARD_COUNT: 10
+      COMPRESSION_TYPE: none
+      COMPRESSION_THRESHOLD: 0
+    restart: no
+#    healthcheck:
+#      test: ["CMD", "wget", "--spider", "http://localhost:8080/health"]
+#      interval: 30s
+#      timeout: 10s
+#      retries: 3

@@ -4,6 +4,7 @@ import (
 	"key-value-store/internal/config"
 	"key-value-store/internal/logger"
 	"key-value-store/internal/service"
+	"key-value-store/internal/store"
 	"key-value-store/internal/transport/http"
 	"key-value-store/internal/transport/http/handler"
 	"log"
@@ -22,7 +23,8 @@ func main() {
 	slog.Info("Starting Lyko Key-Value Store.")
 	slog.Info("Server starting...", "port", configs.Server.Port, "environment", configs.Logging.Environment, "log level", configs.Logging.Level)
 
-	storageService := service.NewStorageService()
+	shardedStore := store.NewShardedStore(configs.Store.ShardCount)
+	storageService := service.NewStorageService(shardedStore)
 	kvHandler := handler.NewKVHandler(storageService)
 	router := http.NewRouter(kvHandler)
 

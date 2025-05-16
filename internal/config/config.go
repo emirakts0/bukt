@@ -9,18 +9,24 @@ import (
 
 const (
 	// Environment variable keys
-	EnvAuthUsername       = "AUTH_USERNAME"
-	EnvAuthPassword       = "AUTH_PASSWORD"
-	EnvServerPort         = "SERVER_PORT"
-	EnvLoggingEnvironment = "LOGGING_ENVIRONMENT"
-	EnvLoggingLevel       = "LOGGING_LEVEL"
+	EnvAuthUsername         = "AUTH_USERNAME"
+	EnvAuthPassword         = "AUTH_PASSWORD"
+	EnvServerPort           = "SERVER_PORT"
+	EnvLoggingEnvironment   = "LOGGING_ENVIRONMENT"
+	EnvLoggingLevel         = "LOGGING_LEVEL"
+	EnvShardCount           = "SHARD_COUNT"
+	EnvCompressionType      = "COMPRESSION_TYPE"
+	EnvCompressionThreshold = "COMPRESSION_THRESHOLD"
 
 	// Default values
-	DefaultAuthUsername       = "emir"
-	DefaultAuthPassword       = "emir"
-	DefaultServerPort         = 8080
-	DefaultLoggingEnvironment = "production"
-	DefaultLoggingLevel       = "info"
+	DefaultAuthUsername         = "emir"
+	DefaultAuthPassword         = "emir"
+	DefaultServerPort           = 8080
+	DefaultLoggingEnvironment   = "production"
+	DefaultLoggingLevel         = "info"
+	DefaultShardCount           = 4
+	DefaultCompressionType      = "gzip"
+	DefaultCompressionThreshold = 1024 // 1KB
 )
 
 var (
@@ -32,6 +38,7 @@ type Config struct {
 	Auth    AuthConfig
 	Server  ServerConfig
 	Logging LoggingConfig
+	Store   StoreConfig
 }
 
 type AuthConfig struct {
@@ -48,6 +55,14 @@ type LoggingConfig struct {
 	Level       string
 }
 
+type StoreConfig struct {
+	ShardCount int
+
+	EvictionPolicy       string
+	CompressionType      string
+	CompressionThreshold int64
+}
+
 func Get() *Config {
 	configOnce.Do(func() {
 		config = &Config{
@@ -61,6 +76,11 @@ func Get() *Config {
 			Logging: LoggingConfig{
 				Environment: getEnv(EnvLoggingEnvironment, DefaultLoggingEnvironment),
 				Level:       getEnv(EnvLoggingLevel, DefaultLoggingLevel),
+			},
+			Store: StoreConfig{
+				ShardCount:           getEnvAsInt(EnvShardCount, DefaultShardCount),
+				CompressionType:      getEnv(EnvCompressionType, DefaultCompressionType),
+				CompressionThreshold: getEnvAsInt64(EnvCompressionThreshold, DefaultCompressionThreshold),
 			},
 		}
 	})
@@ -77,6 +97,16 @@ func getEnv(key, defaultValue string) string {
 func getEnvAsInt(key string, defaultValue int) int {
 	if value, exists := os.LookupEnv(key); exists {
 		intValue, err := strconv.Atoi(strings.TrimSpace(value))
+		if err == nil {
+			return intValue
+		}
+	}
+	return defaultValue
+}
+
+func getEnvAsInt64(key string, defaultValue int64) int64 {
+	if value, exists := os.LookupEnv(key); exists {
+		intValue, err := strconv.ParseInt(strings.TrimSpace(value), 10, 64)
 		if err == nil {
 			return intValue
 		}

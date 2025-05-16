@@ -25,7 +25,7 @@ func Logger(next http.Handler) http.Handler {
 			slog.String("user-agent", userAgent),
 		)
 
-		rw := &responseWriter{ResponseWriter: w, statusCode: http.StatusOK}
+		rw := &responseWriter{ResponseWriter: w, statusCode: 0}
 		next.ServeHTTP(rw, r)
 
 		latency := time.Since(start)
@@ -37,7 +37,7 @@ func Logger(next http.Handler) http.Handler {
 			slog.String("ip", clientIP),
 			slog.String("user-agent", userAgent),
 			slog.Int("status", rw.statusCode),
-			slog.Int64("latency_ns", latency.Nanoseconds()),
+			slog.Duration("latency", latency),
 		}
 
 		switch {

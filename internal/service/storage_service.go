@@ -2,7 +2,8 @@ package service
 
 import (
 	"context"
-	"errors"
+	"key-value-store/internal/config"
+	"key-value-store/internal/errs"
 	"key-value-store/internal/model"
 	"key-value-store/internal/store"
 	"key-value-store/internal/transport/http/middleware"
@@ -10,26 +11,8 @@ import (
 	"time"
 )
 
-//todo: value değeri sadece string değil, int, float, boolean vs. olabilir.
-//todo: requestleri takip etmek için logda correlation id görelim.
-//todo: performansı test et, ekstra depolama özellikleri ekle.
-// Veri kaybının önlenmesi vb için. tek mapde tutuluyor her şey cok yetersiz ve basit şuanda.
-//todo: model paketinin adını değiştir, entry falan olabilir.
-//todo: dosya isimlerini metot ve değişken isimlerini daha iyi design et, web servis havasını bir nebze azalt.
-//todo: 2. bir transport katmanı ekle, tcp veya farklı bir alternatif olabilir.
-//todo: healthcheck endpointi ekle, depolama bilgileri vb vb gibi şeyler için.
-//todo: birden fazla faklı memory storelar olabilir. ayrıca bunlara queue özelliği de ekle, istenirse queue olarak kullanılabilsin.
-//todo: auth kısmını da bunlara göre yenilemek gerek, hangi kovaya kim erişebilir konusunu netleştirmek için.
-
 const (
-	GCInterval = 60
-)
-
-var (
-	ErrKeyNotFound      = errors.New("key not found")
-	ErrInvalidTTL       = errors.New("invalid TTL")
-	ErrKeyAlreadyExists = errors.New("key already exists")
-	ErrKeyExpired       = errors.New("key expired")
+	GCInterval = 5
 )
 
 type IStorageService interface {
@@ -39,14 +22,16 @@ type IStorageService interface {
 }
 
 type storageService struct {
-	store store.MemoryStore
+	store store.IShardedStore
+	cfg   *config.Config
 }
 
-func NewStorageService() IStorageService {
+func NewStorageService(store store.IShardedStore) IStorageService {
 	s := &storageService{
-		store: store.NewMemoryStore(),
+		store: store,
+		cfg:   config.Get(),
 	}
-	s.StartGC(GCInterval * time.Second)
+	s.store.StartGC(GCInterval * time.Second)
 	return s
 }
 
@@ -57,26 +42,42 @@ func (s *storageService) Set(ctx context.Context, key, value string, ttl int64, 
 
 	if ttl <= 0 {
 		slog.Warn("Invalid TTL provided", "crr-id", crrid, "key", key, "ttl", ttl)
-		return model.StorageEntry{}, ErrInvalidTTL
+		return model.StorageEntry{}, errs.ErrInvalidTTL
 	}
 
 	if s.store.Exists(key) {
 		slog.Warn("Key already exists", "crr-id", crrid, "key", key)
-		return model.StorageEntry{}, ErrKeyAlreadyExists
+		return model.StorageEntry{}, errs.ErrKeyAlreadyExists
 	}
 
 	now := time.Now()
 	entry := model.StorageEntry{
-		Key:        key,
-		Value:      value,
-		TTL:        ttl,
-		CreatedAt:  now,
-		ExpiresAt:  now.Add(time.Duration(ttl) * time.Second),
-		SingleRead: singleRead,
+		Key:          key,
+		Value:        value,
+		TTL:          ttl,
+		CreatedAt:    now,
+		ExpiresAt:    now.Add(time.Duration(ttl) * time.Second),
+		SingleRead:   singleRead,
+		OriginalSize: int64(len(value)),
 	}
 
-	s.store.Set(key, entry)
-	slog.Info("Successfully set key-value pair", "crr-id", crrid, "key", key, "ttl", entry.TTL, "single_read", singleRead)
+	// Compress if value size is above threshold and compression is enabled
+	if s.cfg.Store.CompressionType != "none" &&
+		int64(len(value)) > s.cfg.Store.CompressionThreshold {
+		if err := entry.CompressValue(s.cfg.Store.CompressionType); err != nil {
+			slog.Error("Failed to compress value", "crr-id", crrid, "key", key, "error", err)
+			return model.StorageEntry{}, errs.ErrCompression
+		}
+		slog.Debug("Value compressed", "crr-id", crrid, "key", key, "original_size", entry.OriginalSize, "compressed_size", entry.CompressedSize)
+	}
+
+	if err := s.store.Set(key, entry); err != nil {
+		slog.Error("Failed to set key-value pair", "crr-id", crrid, "key", key, "error", err)
+		return model.StorageEntry{}, errs.ErrMemoryLimit
+	}
+
+	slog.Info("Successfully set key-value pair", "crr-id", crrid, "key", key, "ttl", entry.TTL, "single_read", singleRead,
+		"compressed", entry.Compressed, "original_size", entry.OriginalSize, "compressed_size", entry.CompressedSize)
 	return entry, nil
 }
 
@@ -88,21 +89,38 @@ func (s *storageService) Get(ctx context.Context, key string) (model.StorageEntr
 	entry, exists := s.store.Get(key)
 	if !exists {
 		slog.Warn("Key not found", "crr-id", crrid, "key", key)
-		return model.StorageEntry{}, ErrKeyNotFound
+		return model.StorageEntry{}, errs.ErrKeyNotFound
 	}
 
 	if entry.IsExpired() {
 		slog.Warn("Key has expired", "crr-id", crrid, "key", key, "expires_at", entry.ExpiresAt.Format(time.RFC3339))
-		s.store.Delete(key)
-		return model.StorageEntry{}, ErrKeyExpired
+		err := s.store.Delete(key)
+		if err != nil {
+			slog.Error("Deletion error", "crr-id", crrid, "key", key, "error", err)
+			return model.StorageEntry{}, errs.ErrDeletion
+		}
+		return model.StorageEntry{}, errs.ErrKeyExpired
+	}
+
+	// Decompress if needed
+	if entry.Compressed {
+		if err := entry.DecompressValue(config.Get().Store.CompressionType); err != nil {
+			slog.Error("Failed to decompress value", "crr-id", crrid, "key", key, "error", err)
+			return model.StorageEntry{}, errs.ErrCompression
+		}
+		slog.Debug("Value decompressed", "crr-id", crrid, "key", key)
 	}
 
 	if entry.SingleRead {
-		s.store.Delete(key)
+		err := s.store.Delete(key)
+		if err != nil {
+			return model.StorageEntry{}, errs.ErrDeletion
+		}
 		slog.Info("Deleted single-read key after reading", "crr-id", crrid, "key", key, "single_read", entry.SingleRead)
 	}
 
-	slog.Info("Successfully retrieved value", "crr-id", crrid, "key", key, "single_read", entry.SingleRead)
+	slog.Info("Successfully retrieved value", "crr-id", crrid, "key", key, "single_read", entry.SingleRead,
+		"compressed", entry.Compressed, "original_size", entry.OriginalSize, "compressed_size", entry.CompressedSize)
 	return entry, nil
 }
 
@@ -111,38 +129,11 @@ func (s *storageService) Delete(ctx context.Context, key string) error {
 
 	slog.Debug("Attempting to delete key", "crr-id", crrid, "key", key)
 
-	if !s.store.Delete(key) {
-		slog.Warn("Key not found for deletion", "crr-id", crrid, "key", key)
-		return ErrKeyNotFound
+	if err := s.store.Delete(key); err != nil {
+		slog.Warn("Key not found", "crr-id", crrid, "key", key, "err", err)
+		return err
 	}
 
 	slog.Info("Successfully deleted key", "crr-id", crrid, "key", key)
 	return nil
-}
-
-func (s *storageService) StartGC(interval time.Duration) {
-	go func() {
-		ticker := time.NewTicker(interval)
-		defer ticker.Stop()
-
-		for {
-			select {
-			case <-ticker.C:
-				slog.Debug("Running garbage collection for expired keys.")
-				s.cleanupExpiredKeys()
-			}
-		}
-	}()
-}
-
-func (s *storageService) cleanupExpiredKeys() {
-	keys := s.store.Keys()
-
-	for _, key := range keys {
-		entry, exists := s.store.Get(key)
-		if exists && entry.IsExpired() {
-			s.store.Delete(key)
-			slog.Info("Expired key deleted by GC", "key", key, "expired_at", entry.ExpiresAt.Format(time.RFC3339))
-		}
-	}
 }
