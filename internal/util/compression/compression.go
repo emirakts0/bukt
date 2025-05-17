@@ -3,6 +3,7 @@ package compression
 import (
 	"bytes"
 	"compress/gzip"
+	"encoding/base64"
 	"io"
 	"log/slog"
 )
@@ -11,7 +12,36 @@ type CompressionType string
 
 const (
 	Gzip CompressionType = "gzip"
+	None CompressionType = "none"
 )
+
+// CompressAndEncode compresses the input data and encodes it to base64
+func CompressAndEncode(data []byte, ct CompressionType) (string, error) {
+	if len(data) == 0 {
+		return "", nil
+	}
+
+	compressed, err := Compress(data, ct)
+	if err != nil {
+		return "", err
+	}
+
+	return base64.StdEncoding.EncodeToString(compressed), nil
+}
+
+// DecodeAndDecompress decodes base64 string and decompresses the data
+func DecodeAndDecompress(data string, ct CompressionType) ([]byte, error) {
+	if len(data) == 0 {
+		return nil, nil
+	}
+
+	decoded, err := base64.StdEncoding.DecodeString(data)
+	if err != nil {
+		return nil, err
+	}
+
+	return Decompress(decoded, ct)
+}
 
 // Compress compresses the input data using the specified compression type
 func Compress(data []byte, ct CompressionType) ([]byte, error) {

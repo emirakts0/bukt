@@ -11,7 +11,7 @@ func Recovery(next http.Handler) http.Handler {
 		defer func() {
 			if err := recover(); err != nil {
 				slog.Error("PANIC", "errs", err)
-				http_util.WriteInternalError(w, "Internal server error.")
+				http_util.WriteInternalError(w)
 			}
 		}()
 		next.ServeHTTP(w, r)

@@ -1,16 +1,16 @@
 package store
 
 import (
-	"key-value-store/internal/errs"
 	"key-value-store/internal/model"
 	"sync"
+	"sync/atomic"
 	"time"
 )
 
-type MemoryStore interface {
-	Set(key string, entry model.StorageEntry) error
+type Store interface {
+	Set(key string, entry model.StorageEntry)
 	Get(key string) (model.StorageEntry, bool)
-	Delete(key string) error
+	Delete(key string)
 	Exists(key string) bool
 	Keys() []string
 	StartGC(interval time.Duration)
@@ -20,29 +20,20 @@ type MemoryStore interface {
 
 type memoryStore struct {
 	store       map[string]model.StorageEntry
-	keyLocks    sync.Map     // map[string]*sync.Mutex
 	mu          sync.RWMutex // for store operations
-	maxMemory   int64
 	usedMemory  int64
-	accessCount map[string]int64
-	lastAccess  map[string]time.Time
+	accessCount map[string]*int64
+	lastAccess  map[string]*int64
 	gcStop      chan struct{}
 }
 
-func NewMemoryStore() MemoryStore {
+func NewMemoryStore() Store {
 	return &memoryStore{
 		store:       make(map[string]model.StorageEntry),
-		maxMemory:   100 * 1024 * 1024, // 100MB default limit
-		accessCount: make(map[string]int64),
-		lastAccess:  make(map[string]time.Time),
+		accessCount: make(map[string]*int64),
+		lastAccess:  make(map[string]*int64),
 		gcStop:      make(chan struct{}),
 	}
-}
-
-// getKeyLock returns a mutex for the given key, creating it if it doesn't exist
-func (s *memoryStore) getKeyLock(key string) *sync.Mutex {
-	value, _ := s.keyLocks.LoadOrStore(key, &sync.Mutex{})
-	return value.(*sync.Mutex)
 }
 
 func (s *memoryStore) StartGC(interval time.Duration) {
@@ -71,27 +62,18 @@ func (s *memoryStore) cleanupExpiredKeys() {
 
 	for key, entry := range s.store {
 		if entry.IsExpired() {
-			keyLock := s.getKeyLock(key)
-			keyLock.Lock()
-
 			s.usedMemory -= int64(len(key) + len(entry.Value))
 			delete(s.store, key)
 			delete(s.accessCount, key)
 			delete(s.lastAccess, key)
-			s.keyLocks.Delete(key)
-
-			keyLock.Unlock()
 		}
 	}
 }
 
-func (s *memoryStore) Set(key string, entry model.StorageEntry) error {
-	keyLock := s.getKeyLock(key)
-	keyLock.Lock()
-	defer keyLock.Unlock()
-
+func (s *memoryStore) Set(key string, entry model.StorageEntry) {
 	s.mu.Lock()
-	// Calculate entry size
+	defer s.mu.Unlock()
+
 	entrySize := int64(len(key) + len(entry.Value))
 
 	// Check old
@@ -99,53 +81,51 @@ func (s *memoryStore) Set(key string, entry model.StorageEntry) error {
 		s.usedMemory -= int64(len(key) + len(oldEntry.Value))
 	}
 	s.usedMemory += entrySize
-	s.mu.Unlock()
 
-	s.accessCount[key] = 0
-	s.lastAccess[key] = time.Now()
+	s.accessCount[key] = new(int64)
+	s.lastAccess[key] = new(int64)
+	*s.lastAccess[key] = time.Now().UnixNano()
 
 	s.store[key] = entry
-	return nil
 }
 
 func (s *memoryStore) Get(key string) (model.StorageEntry, bool) {
-	keyLock := s.getKeyLock(key)
-	keyLock.Lock()
-	defer keyLock.Unlock()
+	s.mu.RLock()
+	defer s.mu.RUnlock()
 
 	entry, exists := s.store[key]
+
 	if exists {
-		s.accessCount[key]++
-		s.lastAccess[key] = time.Now()
+		if _, ok := s.accessCount[key]; !ok {
+			s.accessCount[key] = new(int64)
+			s.lastAccess[key] = new(int64)
+		}
+		atomic.AddInt64(s.accessCount[key], 1)
+		atomic.StoreInt64(s.lastAccess[key], time.Now().UnixNano())
 	}
 	return entry, exists
 }
 
-func (s *memoryStore) Delete(key string) error {
-	keyLock := s.getKeyLock(key)
-	keyLock.Lock()
-	defer keyLock.Unlock()
+func (s *memoryStore) Delete(key string) {
+	s.mu.Lock()
+	defer s.mu.Unlock()
 
 	entry, exists := s.store[key]
 	if !exists {
-		return errs.ErrKeyNotFound
+		return
 	}
 
-	s.mu.Lock()
 	s.usedMemory -= int64(len(key) + len(entry.Value))
-	s.mu.Unlock()
 
 	delete(s.store, key)
 	delete(s.accessCount, key)
 	delete(s.lastAccess, key)
-	s.keyLocks.Delete(key)
-	return nil
+	return
 }
 
 func (s *memoryStore) Exists(key string) bool {
-	keyLock := s.getKeyLock(key)
-	keyLock.Lock()
-	defer keyLock.Unlock()
+	s.mu.RLock()
+	defer s.mu.RUnlock()
 
 	_, exists := s.store[key]
 	return exists

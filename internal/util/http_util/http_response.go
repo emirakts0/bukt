@@ -33,27 +33,32 @@ func WriteCreated(w http.ResponseWriter, data any) {
 	JSON(w, http.StatusCreated, data)
 }
 
-// WriteOK writes a 200 OK response with the given data
+// WriteOK writes a 200 response with the given data
 func WriteOK(w http.ResponseWriter, data any) {
 	JSON(w, http.StatusOK, data)
 }
 
-// WriteBadRequest writes a 400 Bad Request response with the given message
+// WriteBadRequest writes a 400 response with the given message
 func WriteBadRequest(w http.ResponseWriter, message string) {
 	JSONError(w, http.StatusBadRequest, message)
 }
 
-// WriteNotFound writes a 404 Not Found response with the given message
+// WriteNotFound writes a 404 response with the given message
 func WriteNotFound(w http.ResponseWriter, message string) {
 	JSONError(w, http.StatusNotFound, message)
 }
 
-// WriteInternalError writes a 500 Internal Server Error response with the given message
-func WriteInternalError(w http.ResponseWriter, message string) {
-	JSONError(w, http.StatusInternalServerError, message)
+// WriteInternalError writes a 500 response with the given message
+func WriteInternalError(w http.ResponseWriter) {
+	JSONError(w, http.StatusInternalServerError, "Internal server error")
 }
 
-// WriteUnauthorized writes a 401 Unauthorized response with the given message
+// WriteUnauthorized writes a 401 response with the given message
 func WriteUnauthorized(w http.ResponseWriter, message string) {
 	JSONError(w, http.StatusUnauthorized, message)
+}
+
+// WriteNoContent writes a 204 response with the given message
+func WriteNoContent(w http.ResponseWriter, message string) {
+	JSON(w, http.StatusNoContent, message)
 }

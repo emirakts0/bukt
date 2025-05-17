@@ -9,7 +9,7 @@ import (
 const (
 	MaxKeyLength = 255
 	MinKeyLength = 1
-	MinTTL       = 1
+	MinTTL       = 0
 )
 
 type CreateKVRequest struct {

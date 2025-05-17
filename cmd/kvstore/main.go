@@ -23,8 +23,8 @@ func main() {
 	slog.Info("Starting Lyko Key-Value Store.")
 	slog.Info("Server starting...", "port", configs.Server.Port, "environment", configs.Logging.Environment, "log level", configs.Logging.Level)
 
-	shardedStore := store.NewShardedStore(configs.Store.ShardCount)
-	storageService := service.NewStorageService(shardedStore)
+	storeCoordinator := store.NewCoordinator(configs.Store.ShardCount)
+	storageService := service.NewStorageService(storeCoordinator)
 	kvHandler := handler.NewKVHandler(storageService)
 	router := http.NewRouter(kvHandler)
 

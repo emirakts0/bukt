@@ -25,16 +25,16 @@ const (
 	DefaultLoggingEnvironment   = "production"
 	DefaultLoggingLevel         = "info"
 	DefaultShardCount           = 4
-	DefaultCompressionType      = "gzip"
-	DefaultCompressionThreshold = 1024 // 1KB
+	DefaultCompressionType      = "none"
+	DefaultCompressionThreshold = 0 // 1024 1KB
 )
 
 var (
-	config     *Config
+	config     *Configs
 	configOnce sync.Once
 )
 
-type Config struct {
+type Configs struct {
 	Auth    AuthConfig
 	Server  ServerConfig
 	Logging LoggingConfig
@@ -63,9 +63,9 @@ type StoreConfig struct {
 	CompressionThreshold int64
 }
 
-func Get() *Config {
+func Get() *Configs {
 	configOnce.Do(func() {
-		config = &Config{
+		config = &Configs{
 			Auth: AuthConfig{
 				Username: getEnv(EnvAuthUsername, DefaultAuthUsername),
 				Password: getEnv(EnvAuthPassword, DefaultAuthPassword),
