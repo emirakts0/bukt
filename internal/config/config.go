@@ -30,11 +30,11 @@ const (
 )
 
 var (
-	config     *Configs
+	config     *Configuration
 	configOnce sync.Once
 )
 
-type Configs struct {
+type Configuration struct {
 	Auth    AuthConfig
 	Server  ServerConfig
 	Logging LoggingConfig
@@ -56,16 +56,14 @@ type LoggingConfig struct {
 }
 
 type StoreConfig struct {
-	ShardCount int
-
-	EvictionPolicy       string
+	ShardCount           int
 	CompressionType      string
 	CompressionThreshold int64
 }
 
-func Get() *Configs {
+func Config() *Configuration {
 	configOnce.Do(func() {
-		config = &Configs{
+		config = &Configuration{
 			Auth: AuthConfig{
 				Username: getEnv(EnvAuthUsername, DefaultAuthUsername),
 				Password: getEnv(EnvAuthPassword, DefaultAuthPassword),

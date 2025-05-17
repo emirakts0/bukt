@@ -13,7 +13,7 @@ import (
 )
 
 func main() {
-	configs := config.Get()
+	configs := config.Config()
 
 	logger.Initialize(logger.Config{
 		Environment: configs.Logging.Environment,

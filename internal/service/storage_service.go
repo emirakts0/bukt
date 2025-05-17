@@ -24,13 +24,13 @@ type IStorageService interface {
 
 type storageService struct {
 	store store.Store
-	cfg   *config.Configs
+	cfg   *config.Configuration
 }
 
 func NewStorageService(store store.Store) IStorageService {
 	s := &storageService{
 		store: store,
-		cfg:   config.Get(),
+		cfg:   config.Config(),
 	}
 	s.store.StartGC(GCInterval * time.Second)
 	return s

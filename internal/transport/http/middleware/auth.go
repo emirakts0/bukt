@@ -39,7 +39,7 @@ func Auth(next http.Handler) http.Handler {
 		}
 
 		// Validate credentials
-		if credentials[0] != config.Get().Auth.Username || credentials[1] != config.Get().Auth.Password {
+		if credentials[0] != config.Config().Auth.Username || credentials[1] != config.Config().Auth.Password {
 			http_util.WriteUnauthorized(w, "Invalid credentials")
 			return
 		}
