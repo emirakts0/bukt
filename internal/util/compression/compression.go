@@ -15,6 +15,24 @@ const (
 	None CompressionType = "none"
 )
 
+// CompressBytes compresses the input data and returns compressed bytes
+func CompressBytes(data []byte, ct CompressionType) ([]byte, error) {
+	if len(data) == 0 {
+		return data, nil
+	}
+
+	return Compress(data, ct)
+}
+
+// DecompressBytes decompresses the byte data
+func DecompressBytes(data []byte, ct CompressionType) ([]byte, error) {
+	if len(data) == 0 {
+		return data, nil
+	}
+
+	return Decompress(data, ct)
+}
+
 // CompressAndEncode compresses the input data and encodes it to base64
 func CompressAndEncode(data []byte, ct CompressionType) (string, error) {
 	if len(data) == 0 {

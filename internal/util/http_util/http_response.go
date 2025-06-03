@@ -48,6 +48,11 @@ func WriteNotFound(w http.ResponseWriter, message string) {
 	JSONError(w, http.StatusNotFound, message)
 }
 
+// WriteConflict writes a 409 response with the given message
+func WriteConflict(w http.ResponseWriter, message string) {
+	JSONError(w, http.StatusConflict, message)
+}
+
 // WriteInternalError writes a 500 response with the given message
 func WriteInternalError(w http.ResponseWriter) {
 	JSONError(w, http.StatusInternalServerError, "Internal server error")

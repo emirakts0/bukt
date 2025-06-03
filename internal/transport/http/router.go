@@ -18,7 +18,7 @@ type Router struct {
 	mux    *http.ServeMux
 }
 
-func NewRouter(kvHandler *handler.KVHandler) *Router {
+func NewRouter(kvHandler *handler.KVHandler, bucketHandler *handler.BucketHandler) *Router {
 	mux := http.NewServeMux()
 
 	commonMiddleware := []middleware.Middleware{
@@ -28,9 +28,16 @@ func NewRouter(kvHandler *handler.KVHandler) *Router {
 		middleware.Auth,
 	}
 
-	mux.HandleFunc("POST /api/kv", middleware.ApplyMiddleware(kvHandler.Create, commonMiddleware...))
-	mux.HandleFunc("GET /api/kv/{key}", middleware.ApplyMiddleware(kvHandler.Get, commonMiddleware...))
-	mux.HandleFunc("DELETE /api/kv/{key}", middleware.ApplyMiddleware(kvHandler.Delete, commonMiddleware...))
+	// Bucket management endpoints
+	mux.HandleFunc("POST /api/buckets", middleware.ApplyMiddleware(bucketHandler.CreateBucket, commonMiddleware...))
+	mux.HandleFunc("GET /api/buckets", middleware.ApplyMiddleware(bucketHandler.ListBuckets, commonMiddleware...))
+	mux.HandleFunc("GET /api/buckets/{bucket}", middleware.ApplyMiddleware(bucketHandler.GetBucket, commonMiddleware...))
+	mux.HandleFunc("DELETE /api/buckets/{bucket}", middleware.ApplyMiddleware(bucketHandler.DeleteBucket, commonMiddleware...))
+
+	// Key-value endpoints
+	mux.HandleFunc("POST /api/buckets/{bucket}/kv", middleware.ApplyMiddleware(kvHandler.Create, commonMiddleware...))
+	mux.HandleFunc("GET /api/buckets/{bucket}/kv/{key}", middleware.ApplyMiddleware(kvHandler.Get, commonMiddleware...))
+	mux.HandleFunc("DELETE /api/buckets/{bucket}/kv/{key}", middleware.ApplyMiddleware(kvHandler.Delete, commonMiddleware...))
 
 	return &Router{
 		mux: mux,

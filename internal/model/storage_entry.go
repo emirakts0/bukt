@@ -6,7 +6,7 @@ import (
 
 type StorageEntry struct {
 	Key            string
-	Value          string
+	Value          []byte
 	Compressed     bool
 	CompressedSize int64
 	OriginalSize   int64
