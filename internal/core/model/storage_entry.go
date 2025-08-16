@@ -14,6 +14,8 @@ type StorageEntry struct {
 	CreatedAt      time.Time
 	ExpiresAt      time.Time
 	SingleRead     bool
+	AccessCount    int64
+	LastAccess     int64 // UnixNano
 }
 
 func (e StorageEntry) IsExpired() bool {

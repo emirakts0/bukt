@@ -1,7 +1,7 @@
-package store
+package engine
 
 import (
-	"key-value-store/internal/model"
+	"key-value-store/internal/core/model"
 	"sync"
 	"sync/atomic"
 	"time"
@@ -18,25 +18,21 @@ type Store interface {
 	GetMemoryUsage() int64
 }
 
-type memoryStore struct {
-	store       map[string]model.StorageEntry
-	mu          sync.RWMutex // for store operations
-	usedMemory  int64
-	accessCount map[string]*int64
-	lastAccess  map[string]*int64
-	gcStop      chan struct{}
+type MemoryStore struct {
+	store      map[string]*model.StorageEntry
+	mu         sync.RWMutex // for store operations
+	usedMemory int64
+	gcStop     chan struct{}
 }
 
 func NewMemoryStore() Store {
-	return &memoryStore{
-		store:       make(map[string]model.StorageEntry),
-		accessCount: make(map[string]*int64),
-		lastAccess:  make(map[string]*int64),
-		gcStop:      make(chan struct{}),
+	return &MemoryStore{
+		store:  make(map[string]*model.StorageEntry),
+		gcStop: make(chan struct{}),
 	}
 }
 
-func (s *memoryStore) StartGC(interval time.Duration) {
+func (s *MemoryStore) StartGC(interval time.Duration) {
 	go func() {
 		ticker := time.NewTicker(interval)
 		defer ticker.Stop()
@@ -52,11 +48,11 @@ func (s *memoryStore) StartGC(interval time.Duration) {
 	}()
 }
 
-func (s *memoryStore) StopGC() {
+func (s *MemoryStore) StopGC() {
 	close(s.gcStop)
 }
 
-func (s *memoryStore) cleanupExpiredKeys() {
+func (s *MemoryStore) cleanupExpiredKeys() {
 	s.mu.Lock()
 	defer s.mu.Unlock()
 
@@ -64,13 +60,11 @@ func (s *memoryStore) cleanupExpiredKeys() {
 		if entry.IsExpired() {
 			s.usedMemory -= int64(len(key) + len(entry.Value))
 			delete(s.store, key)
-			delete(s.accessCount, key)
-			delete(s.lastAccess, key)
 		}
 	}
 }
 
-func (s *memoryStore) Set(key string, entry model.StorageEntry) {
+func (s *MemoryStore) Set(key string, entry model.StorageEntry) {
 	s.mu.Lock()
 	defer s.mu.Unlock()
 
@@ -82,31 +76,41 @@ func (s *memoryStore) Set(key string, entry model.StorageEntry) {
 	}
 	s.usedMemory += entrySize
 
-	s.accessCount[key] = new(int64)
-	s.lastAccess[key] = new(int64)
-	*s.lastAccess[key] = time.Now().UnixNano()
+	entry.LastAccess = time.Now().UnixNano()
+	entry.AccessCount = 0
 
-	s.store[key] = entry
+	s.store[key] = &entry
 }
 
-func (s *memoryStore) Get(key string) (model.StorageEntry, bool) {
+func (s *MemoryStore) Get(key string) (model.StorageEntry, bool) {
 	s.mu.RLock()
 	defer s.mu.RUnlock()
 
 	entry, exists := s.store[key]
-
-	if exists {
-		if _, ok := s.accessCount[key]; !ok {
-			s.accessCount[key] = new(int64)
-			s.lastAccess[key] = new(int64)
-		}
-		atomic.AddInt64(s.accessCount[key], 1)
-		atomic.StoreInt64(s.lastAccess[key], time.Now().UnixNano())
+	if !exists {
+		return model.StorageEntry{}, false
 	}
-	return entry, exists
+
+	if entry.IsExpired() {
+		go s.Delete(key)
+		return model.StorageEntry{}, false
+	}
+
+	if entry.SingleRead {
+		if atomic.AddInt64(&entry.AccessCount, 1) > 1 {
+			return model.StorageEntry{}, false
+		}
+
+		go s.Delete(key)
+		return *entry, true
+	}
+
+	atomic.AddInt64(&entry.AccessCount, 1)
+	atomic.StoreInt64(&entry.LastAccess, time.Now().UnixNano())
+	return *entry, exists
 }
 
-func (s *memoryStore) Delete(key string) {
+func (s *MemoryStore) Delete(key string) {
 	s.mu.Lock()
 	defer s.mu.Unlock()
 
@@ -118,12 +122,10 @@ func (s *memoryStore) Delete(key string) {
 	s.usedMemory -= int64(len(key) + len(entry.Value))
 
 	delete(s.store, key)
-	delete(s.accessCount, key)
-	delete(s.lastAccess, key)
 	return
 }
 
-func (s *memoryStore) Exists(key string) bool {
+func (s *MemoryStore) Exists(key string) bool {
 	s.mu.RLock()
 	defer s.mu.RUnlock()
 
@@ -131,7 +133,7 @@ func (s *memoryStore) Exists(key string) bool {
 	return exists
 }
 
-func (s *memoryStore) Keys() []string {
+func (s *MemoryStore) Keys() []string {
 	s.mu.RLock()
 	defer s.mu.RUnlock()
 
@@ -142,7 +144,7 @@ func (s *memoryStore) Keys() []string {
 	return keys
 }
 
-func (s *memoryStore) GetMemoryUsage() int64 {
+func (s *MemoryStore) GetMemoryUsage() int64 {
 	s.mu.RLock()
 	defer s.mu.RUnlock()
 	return s.usedMemory

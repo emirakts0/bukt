@@ -8,7 +8,7 @@ RUN go mod download
 
 COPY . .
 
-RUN CGO_ENABLED=0 GOOS=linux go build -o key-value-store ./cmd/kvstore
+RUN CGO_ENABLED=0 GOOS=linux go build -o key-value-engine ./cmd/kvstore
 
 # Final stage
 FROM alpine:latest

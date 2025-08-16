@@ -2,29 +2,29 @@ package service
 
 import (
 	"context"
-	"key-value-store/internal/store"
+	"key-value-store/internal/core"
 	"key-value-store/internal/transport/http/middleware"
 	"log/slog"
 )
 
 type IBucketService interface {
-	CreateBucket(ctx context.Context, name, description string, shardCount int) (*store.Bucket, error)
-	GetBucket(ctx context.Context, name string) (*store.Bucket, error)
+	CreateBucket(ctx context.Context, name, description string, shardCount int) (*core.Bucket, error)
+	GetBucket(ctx context.Context, name string) (*core.Bucket, error)
 	DeleteBucket(ctx context.Context, name string) error
-	ListBuckets(ctx context.Context) ([]store.Bucket, error)
+	ListBuckets(ctx context.Context) ([]core.Bucket, error)
 }
 
 type bucketService struct {
-	bucketManager store.BucketManager
+	bucketManager core.BucketManager
 }
 
-func NewBucketService(bucketManager store.BucketManager) IBucketService {
+func NewBucketService(bucketManager core.BucketManager) IBucketService {
 	return &bucketService{
 		bucketManager: bucketManager,
 	}
 }
 
-func (s *bucketService) CreateBucket(ctx context.Context, name, description string, shardCount int) (*store.Bucket, error) {
+func (s *bucketService) CreateBucket(ctx context.Context, name, description string, shardCount int) (*core.Bucket, error) {
 	crrid := middleware.CorrelationID(ctx)
 	slog.Debug("BucketService: Creating bucket", "crr-id", crrid, "name", name, "shard_count", shardCount)
 
@@ -38,7 +38,7 @@ func (s *bucketService) CreateBucket(ctx context.Context, name, description stri
 	return bucket, nil
 }
 
-func (s *bucketService) GetBucket(ctx context.Context, name string) (*store.Bucket, error) {
+func (s *bucketService) GetBucket(ctx context.Context, name string) (*core.Bucket, error) {
 	crrid := middleware.CorrelationID(ctx)
 	slog.Debug("BucketService: Getting bucket", "crr-id", crrid, "name", name)
 
@@ -65,7 +65,7 @@ func (s *bucketService) DeleteBucket(ctx context.Context, name string) error {
 	return nil
 }
 
-func (s *bucketService) ListBuckets(ctx context.Context) ([]store.Bucket, error) {
+func (s *bucketService) ListBuckets(ctx context.Context) ([]core.Bucket, error) {
 	crrid := middleware.CorrelationID(ctx)
 	slog.Debug("BucketService: Listing buckets", "crr-id", crrid)
 

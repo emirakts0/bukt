@@ -1,7 +1,7 @@
 package response
 
 import (
-	"key-value-store/internal/store"
+	"key-value-store/internal/core"
 	"time"
 )
 
@@ -20,7 +20,7 @@ type BucketListResponse struct {
 	Count   int              `json:"count"`
 }
 
-func NewBucketResponseFromBucket(bucket store.Bucket) BucketResponse {
+func NewBucketResponseFromBucket(bucket core.Bucket) BucketResponse {
 	return BucketResponse{
 		ID:          bucket.ID,
 		Name:        bucket.Name,
@@ -32,7 +32,7 @@ func NewBucketResponseFromBucket(bucket store.Bucket) BucketResponse {
 	}
 }
 
-func NewBucketListResponse(buckets []store.Bucket) BucketListResponse {
+func NewBucketListResponse(buckets []core.Bucket) BucketListResponse {
 	bucketResponses := make([]BucketResponse, len(buckets))
 	for i, bucket := range buckets {
 		bucketResponses[i] = NewBucketResponseFromBucket(bucket)

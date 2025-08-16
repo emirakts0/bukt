@@ -1,8 +1,8 @@
-package store
+package engine
 
 import (
 	"hash/fnv"
-	"key-value-store/internal/model"
+	"key-value-store/internal/core/model"
 	"sync"
 	"time"
 )

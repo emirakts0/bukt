@@ -3,9 +3,9 @@ package service
 import (
 	"context"
 	"key-value-store/internal/config"
+	"key-value-store/internal/core"
+	"key-value-store/internal/core/model"
 	"key-value-store/internal/errs"
-	"key-value-store/internal/model"
-	"key-value-store/internal/store"
 	"key-value-store/internal/transport/http/middleware"
 	"key-value-store/internal/util/compression"
 	"log/slog"
@@ -19,11 +19,11 @@ type IStorageService interface {
 }
 
 type storageService struct {
-	bucketManager store.BucketManager
+	bucketManager core.BucketManager
 	cfg           *config.Configuration
 }
 
-func NewStorageService(bucketManager store.BucketManager) IStorageService {
+func NewStorageService(bucketManager core.BucketManager) IStorageService {
 	s := &storageService{
 		bucketManager: bucketManager,
 		cfg:           config.Config(),
@@ -40,10 +40,10 @@ func (s *storageService) Set(ctx context.Context, bucketName, key, value string,
 		return model.StorageEntry{}, errs.ErrInvalidTTL
 	}
 
-	// Get bucket store from bucket manager
+	// Get bucket engine from bucket manager
 	bucketStore, err := s.bucketManager.GetBucketStore(bucketName)
 	if err != nil {
-		slog.Error("Service: Failed to get bucket store", "crr-id", crrid, "bucket", bucketName, "error", err)
+		slog.Error("Service: Failed to get bucket engine", "crr-id", crrid, "bucket", bucketName, "error", err)
 		return model.StorageEntry{}, err
 	}
 
@@ -91,23 +91,17 @@ func (s *storageService) Get(ctx context.Context, bucketName, key string) (model
 	crrid := middleware.CorrelationID(ctx)
 	slog.Debug("Service: Attempting to get value from bucket", "crr-id", crrid, "bucket", bucketName, "key", key)
 
-	// Get bucket store from bucket manager
+	// Get bucket engine from bucket manager
 	bucketStore, err := s.bucketManager.GetBucketStore(bucketName)
 	if err != nil {
-		slog.Error("Service: Failed to get bucket store", "crr-id", crrid, "bucket", bucketName, "error", err)
+		slog.Error("Service: Failed to get bucket engine", "crr-id", crrid, "bucket", bucketName, "error", err)
 		return model.StorageEntry{}, err
 	}
 
 	entry, exists := bucketStore.Get(key)
 	if !exists {
-		slog.Debug("Service: Key not found in bucket store", "crr-id", crrid, "bucket", bucketName, "key", key)
+		slog.Debug("Service: Key not found in bucket engine", "crr-id", crrid, "bucket", bucketName, "key", key)
 		return model.StorageEntry{}, errs.ErrKeyNotFound
-	}
-
-	if entry.IsExpired() {
-		slog.Debug("Service: Key has expired in bucket store", "crr-id", crrid, "bucket", bucketName, "key", key, "expires_at", entry.ExpiresAt.Format(time.RFC3339))
-		bucketStore.Delete(key)
-		return model.StorageEntry{}, errs.ErrKeyExpired
 	}
 
 	// Decompress if needed
@@ -124,7 +118,6 @@ func (s *storageService) Get(ctx context.Context, bucketName, key string) (model
 	}
 
 	if entry.SingleRead {
-		bucketStore.Delete(key)
 		slog.Debug("Service: Deleted single-read key after reading", "crr-id", crrid, "bucket", bucketName, "key", key)
 	}
 
@@ -138,7 +131,7 @@ func (s *storageService) Delete(ctx context.Context, bucketName, key string) err
 
 	bucketStore, err := s.bucketManager.GetBucketStore(bucketName)
 	if err != nil {
-		slog.Error("Service: Failed to get bucket store", "crr-id", crrid, "bucket", bucketName, "error", err)
+		slog.Error("Service: Failed to get bucket engine", "crr-id", crrid, "bucket", bucketName, "error", err)
 		return err
 	}
 

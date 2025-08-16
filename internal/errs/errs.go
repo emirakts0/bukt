@@ -11,3 +11,9 @@ var (
 	ErrCompression      = errors.New("compression error")
 	ErrDeletion         = errors.New("deletion error")
 )
+
+var (
+	ErrBucketNotFound      = errors.New("bucket not found")
+	ErrBucketAlreadyExists = errors.New("bucket already exists")
+	ErrInvalidBucketName   = errors.New("invalid bucket name")
+)

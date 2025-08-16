@@ -16,7 +16,8 @@ func Correlation(next http.Handler) http.Handler {
 		correlationID := r.Header.Get(CorrelationIDHeader)
 
 		if correlationID == "" {
-			correlationID = uuid.New().String()
+			uuidV7, _ := uuid.NewV7()
+			correlationID = uuidV7.String()
 		}
 
 		ctx := context.WithValue(r.Context(), correlationIDKey, correlationID)

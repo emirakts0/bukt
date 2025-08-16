@@ -1,7 +1,7 @@
 package response
 
 import (
-	"key-value-store/internal/model"
+	"key-value-store/internal/core/model"
 	"time"
 )
 

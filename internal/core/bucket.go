@@ -1,46 +1,38 @@
-package store
+package core
 
 import (
-	"crypto/rand"
-	"encoding/hex"
 	"errors"
+	"github.com/google/uuid"
 	"key-value-store/internal/config"
+	"key-value-store/internal/core/engine"
+	"key-value-store/internal/errs"
 	"log/slog"
 	"sync"
 	"time"
 )
 
-var (
-	ErrBucketNotFound      = errors.New("bucket not found")
-	ErrBucketAlreadyExists = errors.New("bucket already exists")
-	ErrInvalidBucketName   = errors.New("invalid bucket name")
-)
-
-// Bucket represents a storage bucket with its own shard container
+// todo: dosya yazma işlemleri için de uygun ortamı hazırlasın. engine altına veya dosya için farklı bir yere dosyalar açalım.
+// ayrıca yazma işlemleri için shardingi çağırmak yerine daha genel bir tiered store falan gibi bir yapı olabilir. bu sayede dosya kısımlarını yönetiriz falan. üzerine bi kafa yormak gerek.
+// oldukça fazla edge case var mesela dosyadan çekerken yazarken oluşacak yavaşlıklar. bu durumlarda key bazlı kilitleme mekanizması yapabiliriz. dosya işlemleri sırasında uygun yerde keyi kitleriz falan.
 type Bucket struct {
-	ID             string          `json:"id"`
-	Name           string          `json:"name"`
-	Description    string          `json:"description"`
-	CreatedAt      time.Time       `json:"created_at"`
-	ShardCount     int             `json:"shard_count"`
-	KeyCount       int64           `json:"key_count"`
-	MemoryUsage    int64           `json:"memory_usage"`
-	ShardContainer *ShardContainer `json:"-"` // Direct pointer, not exposed in JSON
+	ID             string
+	Name           string
+	Description    string
+	CreatedAt      time.Time
+	ShardCount     int
+	KeyCount       int64
+	MemoryUsage    int64
+	ShardContainer *engine.ShardContainer
 }
 
 // BucketManager manages multiple buckets with direct shard container pointers
 type BucketManager interface {
-	// Bucket management
 	CreateBucket(name, description string, shardCount int) (*Bucket, error)
 	GetBucket(name string) (*Bucket, error)
 	DeleteBucket(name string) error
 	ListBuckets() []Bucket
 	BucketExists(name string) bool
-
-	// Store operations (for data access)
-	GetBucketStore(bucketName string) (Store, error)
-
-	// Lifecycle
+	GetBucketStore(bucketName string) (engine.Store, error)
 	Shutdown()
 }
 
@@ -51,13 +43,8 @@ type bucketManager struct {
 }
 
 func generateBucketID() string {
-	bytes := make([]byte, 8)
-	_, err := rand.Read(bytes)
-	if err != nil {
-		// Fallback to timestamp-based ID
-		return hex.EncodeToString([]byte(time.Now().Format("20060102150405")))
-	}
-	return hex.EncodeToString(bytes)
+	id, _ := uuid.NewV7()
+	return id.String()
 }
 
 func NewBucketManager() BucketManager {
@@ -67,7 +54,6 @@ func NewBucketManager() BucketManager {
 		cfg:     cfg,
 	}
 
-	// Create default bucket
 	defaultBucket, err := manager.CreateBucket("default", "Default bucket", cfg.Store.ShardCount)
 	if err != nil {
 		slog.Error("Failed to create default bucket", "error", err)
@@ -82,7 +68,7 @@ func (m *bucketManager) CreateBucket(name, description string, shardCount int) (
 	slog.Debug("BucketManager: Creating bucket", "name", name, "shard_count", shardCount)
 
 	if name == "" {
-		return nil, ErrInvalidBucketName
+		return nil, errs.ErrInvalidBucketName
 	}
 
 	if shardCount <= 0 {
@@ -93,11 +79,10 @@ func (m *bucketManager) CreateBucket(name, description string, shardCount int) (
 	defer m.mu.Unlock()
 
 	if _, exists := m.buckets[name]; exists {
-		return nil, ErrBucketAlreadyExists
+		return nil, errs.ErrBucketAlreadyExists
 	}
 
-	// Create shard container for this bucket
-	shardContainer := NewShardContainer(shardCount)
+	shardContainer := engine.NewShardContainer(shardCount)
 
 	bucket := &Bucket{
 		ID:             generateBucketID(),
@@ -124,7 +109,7 @@ func (m *bucketManager) GetBucket(name string) (*Bucket, error) {
 
 	bucket, exists := m.buckets[name]
 	if !exists {
-		return nil, ErrBucketNotFound
+		return nil, errs.ErrBucketNotFound
 	}
 
 	// Create a copy with updated stats
@@ -148,7 +133,7 @@ func (m *bucketManager) DeleteBucket(name string) error {
 
 	bucket, exists := m.buckets[name]
 	if !exists {
-		return ErrBucketNotFound
+		return errs.ErrBucketNotFound
 	}
 
 	// Stop GC for the shard container
@@ -186,13 +171,13 @@ func (m *bucketManager) BucketExists(name string) bool {
 	return exists
 }
 
-func (m *bucketManager) GetBucketStore(bucketName string) (Store, error) {
+func (m *bucketManager) GetBucketStore(bucketName string) (engine.Store, error) {
 	m.mu.RLock()
 	defer m.mu.RUnlock()
 
 	bucket, exists := m.buckets[bucketName]
 	if !exists {
-		return nil, ErrBucketNotFound
+		return nil, errs.ErrBucketNotFound
 	}
 
 	return bucket.ShardContainer, nil
