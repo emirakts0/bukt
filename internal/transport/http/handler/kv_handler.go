@@ -2,7 +2,6 @@ package handler
 
 import (
 	"errors"
-	"key-value-store/internal/core"
 	"key-value-store/internal/errs"
 	"key-value-store/internal/service"
 	"key-value-store/internal/transport/http/handler/request"
@@ -51,7 +50,7 @@ func (h *KVHandler) Create(w http.ResponseWriter, r *http.Request) {
 		switch {
 		case errors.Is(err, errs.ErrInvalidTTL):
 			http_util.WriteBadRequest(w, "Invalid TTL")
-		case errors.Is(err, core.ErrBucketNotFound):
+		case errors.Is(err, errs.ErrBucketNotFound):
 			http_util.WriteNotFound(w, "Bucket not found")
 		default:
 			slog.Error("Handler: Failed to set key-value in bucket", "crr-id", crrid, "bucket", bucketName, "error", err)
@@ -87,7 +86,7 @@ func (h *KVHandler) Get(w http.ResponseWriter, r *http.Request) {
 			http_util.WriteNotFound(w, "Key not found")
 		case errors.Is(err, errs.ErrKeyExpired):
 			http_util.WriteNotFound(w, "Key expired")
-		case errors.Is(err, core.ErrBucketNotFound):
+		case errors.Is(err, errs.ErrBucketNotFound):
 			http_util.WriteNotFound(w, "Bucket not found")
 		default:
 			slog.Error("Handler: Failed to get key from bucket", "crr-id", crrid, "bucket", bucketName, "key", key, "error", err)
@@ -120,7 +119,7 @@ func (h *KVHandler) Delete(w http.ResponseWriter, r *http.Request) {
 	err := h.service.Delete(r.Context(), bucketName, key)
 	if err != nil {
 		switch {
-		case errors.Is(err, core.ErrBucketNotFound):
+		case errors.Is(err, errs.ErrBucketNotFound):
 			http_util.WriteNotFound(w, "Bucket not found")
 		default:
 			slog.Error("Handler: Failed to delete key from bucket", "crr-id", crrid, "bucket", bucketName, "key", key, "error", err)

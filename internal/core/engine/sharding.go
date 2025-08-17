@@ -1,23 +1,45 @@
 package engine
 
 import (
+	"fmt"
 	"hash/fnv"
+	"key-value-store/internal/config"
 	"key-value-store/internal/core/model"
+	"path/filepath"
 	"sync"
 	"time"
 )
 
-// ShardContainer manages multiple Store instances (shards) in a container.
 type ShardContainer struct {
 	shards      []Store
 	shardCount  int
 	useSharding bool
 }
 
-func NewShardContainer(shardCount int) *ShardContainer {
+func NewShardContainer(bucketName string, shardCount int, cfg config.EngineConfig) *ShardContainer {
+	storeFactory := func(shardIndex int) Store {
+		diskFilePath := filepath.Join(cfg.DataDir, fmt.Sprintf("%s_shard_%d.db", bucketName, shardIndex))
+
+		switch cfg.Type {
+		case "tiered":
+			memoryStore := NewMemoryStore()
+			diskStore, err := NewDiskStore(diskFilePath)
+			if err != nil {
+				panic(fmt.Sprintf("failed to create disk store for bucket %s, shard %d: %v", bucketName, shardIndex, err))
+			}
+			tieredStore := NewTieredStore(memoryStore, diskStore)
+			if ts, ok := tieredStore.(*TieredStore); ok {
+				ts.StartEviction(cfg.EvictionInterval, cfg.EvictionBatchSize, 16)
+			}
+			return tieredStore
+		default:
+			return NewMemoryStore()
+		}
+	}
+
 	if shardCount <= 1 {
 		return &ShardContainer{
-			shards:      []Store{NewMemoryStore()},
+			shards:      []Store{storeFactory(0)},
 			shardCount:  1,
 			useSharding: false,
 		}
@@ -25,7 +47,7 @@ func NewShardContainer(shardCount int) *ShardContainer {
 
 	shards := make([]Store, shardCount)
 	for i := 0; i < shardCount; i++ {
-		shards[i] = NewMemoryStore()
+		shards[i] = storeFactory(i)
 	}
 
 	return &ShardContainer{
@@ -43,7 +65,6 @@ func (sc *ShardContainer) getShard(key string) Store {
 	hash := fnv.New32a()
 	_, err := hash.Write([]byte(key))
 	if err != nil {
-		// handle
 		panic(err)
 	}
 	return sc.shards[hash.Sum32()%uint32(sc.shardCount)]

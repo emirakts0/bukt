@@ -34,6 +34,7 @@ func NewRouter(kvHandler *handler.KVHandler, bucketHandler *handler.BucketHandle
 	mux.HandleFunc("GET /api/buckets/{bucket}", middleware.ApplyMiddleware(bucketHandler.GetBucket, commonMiddleware...))
 	mux.HandleFunc("DELETE /api/buckets/{bucket}", middleware.ApplyMiddleware(bucketHandler.DeleteBucket, commonMiddleware...))
 
+	// todo: add get random.
 	// Key-value endpoints
 	mux.HandleFunc("POST /api/buckets/{bucket}/kv", middleware.ApplyMiddleware(kvHandler.Create, commonMiddleware...))
 	mux.HandleFunc("GET /api/buckets/{bucket}/kv/{key}", middleware.ApplyMiddleware(kvHandler.Get, commonMiddleware...))

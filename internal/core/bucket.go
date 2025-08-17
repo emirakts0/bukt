@@ -2,18 +2,16 @@ package core
 
 import (
 	"errors"
-	"github.com/google/uuid"
 	"key-value-store/internal/config"
 	"key-value-store/internal/core/engine"
 	"key-value-store/internal/errs"
 	"log/slog"
 	"sync"
 	"time"
+
+	"github.com/google/uuid"
 )
 
-// todo: dosya yazma işlemleri için de uygun ortamı hazırlasın. engine altına veya dosya için farklı bir yere dosyalar açalım.
-// ayrıca yazma işlemleri için shardingi çağırmak yerine daha genel bir tiered store falan gibi bir yapı olabilir. bu sayede dosya kısımlarını yönetiriz falan. üzerine bi kafa yormak gerek.
-// oldukça fazla edge case var mesela dosyadan çekerken yazarken oluşacak yavaşlıklar. bu durumlarda key bazlı kilitleme mekanizması yapabiliriz. dosya işlemleri sırasında uygun yerde keyi kitleriz falan.
 type Bucket struct {
 	ID             string
 	Name           string
@@ -82,7 +80,7 @@ func (m *bucketManager) CreateBucket(name, description string, shardCount int) (
 		return nil, errs.ErrBucketAlreadyExists
 	}
 
-	shardContainer := engine.NewShardContainer(shardCount)
+	shardContainer := engine.NewShardContainer(name, shardCount, m.cfg.Engine)
 
 	bucket := &Bucket{
 		ID:             generateBucketID(),

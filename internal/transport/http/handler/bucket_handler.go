@@ -2,7 +2,7 @@ package handler
 
 import (
 	"errors"
-	"key-value-store/internal/core"
+	"key-value-store/internal/errs"
 	"key-value-store/internal/service"
 	"key-value-store/internal/transport/http/handler/request"
 	"key-value-store/internal/transport/http/handler/response"
@@ -41,9 +41,9 @@ func (h *BucketHandler) CreateBucket(w http.ResponseWriter, r *http.Request) {
 	bucket, err := h.service.CreateBucket(r.Context(), req.Name, req.Description, req.ShardCount)
 	if err != nil {
 		switch {
-		case errors.Is(err, core.ErrBucketAlreadyExists):
+		case errors.Is(err, errs.ErrBucketAlreadyExists):
 			http_util.WriteConflict(w, "Bucket already exists")
-		case errors.Is(err, core.ErrInvalidBucketName):
+		case errors.Is(err, errs.ErrInvalidBucketName):
 			http_util.WriteBadRequest(w, "Invalid bucket name")
 		default:
 			slog.Error("Handler: Failed to create bucket", "crr-id", crrid, "error", err)
@@ -69,7 +69,7 @@ func (h *BucketHandler) GetBucket(w http.ResponseWriter, r *http.Request) {
 	bucket, err := h.service.GetBucket(r.Context(), bucketName)
 	if err != nil {
 		switch {
-		case errors.Is(err, core.ErrBucketNotFound):
+		case errors.Is(err, errs.ErrBucketNotFound):
 			http_util.WriteNotFound(w, "Bucket not found")
 		default:
 			slog.Error("Handler: Failed to get bucket", "crr-id", crrid, "bucket", bucketName, "error", err)
@@ -95,7 +95,7 @@ func (h *BucketHandler) DeleteBucket(w http.ResponseWriter, r *http.Request) {
 	err := h.service.DeleteBucket(r.Context(), bucketName)
 	if err != nil {
 		switch {
-		case errors.Is(err, core.ErrBucketNotFound):
+		case errors.Is(err, errs.ErrBucketNotFound):
 			http_util.WriteNotFound(w, "Bucket not found")
 		default:
 			slog.Error("Handler: Failed to delete bucket", "crr-id", crrid, "bucket", bucketName, "error", err)

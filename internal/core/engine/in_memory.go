@@ -7,6 +7,7 @@ import (
 	"time"
 )
 
+// get memory usage yerine usage olsun sadece. disk için de aynını kullanıcaz.
 type Store interface {
 	Set(key string, entry model.StorageEntry)
 	Get(key string) (model.StorageEntry, bool)
@@ -20,48 +21,26 @@ type Store interface {
 
 type MemoryStore struct {
 	store      map[string]*model.StorageEntry
-	mu         sync.RWMutex // for store operations
+	mu         sync.RWMutex
 	usedMemory int64
-	gcStop     chan struct{}
+	*GarbageCollector
 }
 
 func NewMemoryStore() Store {
-	return &MemoryStore{
-		store:  make(map[string]*model.StorageEntry),
-		gcStop: make(chan struct{}),
+	ms := &MemoryStore{
+		store:      make(map[string]*model.StorageEntry),
+		usedMemory: 0,
 	}
+	ms.GarbageCollector = NewGarbageCollector(ms.Delete)
+	return ms
 }
 
 func (s *MemoryStore) StartGC(interval time.Duration) {
-	go func() {
-		ticker := time.NewTicker(interval)
-		defer ticker.Stop()
-
-		for {
-			select {
-			case <-ticker.C:
-				s.cleanupExpiredKeys()
-			case <-s.gcStop:
-				return
-			}
-		}
-	}()
+	s.GarbageCollector.Start(interval)
 }
 
 func (s *MemoryStore) StopGC() {
-	close(s.gcStop)
-}
-
-func (s *MemoryStore) cleanupExpiredKeys() {
-	s.mu.Lock()
-	defer s.mu.Unlock()
-
-	for key, entry := range s.store {
-		if entry.IsExpired() {
-			s.usedMemory -= int64(len(key) + len(entry.Value))
-			delete(s.store, key)
-		}
-	}
+	s.GarbageCollector.Stop()
 }
 
 func (s *MemoryStore) Set(key string, entry model.StorageEntry) {
@@ -70,7 +49,6 @@ func (s *MemoryStore) Set(key string, entry model.StorageEntry) {
 
 	entrySize := int64(len(key) + len(entry.Value))
 
-	// Check old
 	if oldEntry, exists := s.store[key]; exists {
 		s.usedMemory -= int64(len(key) + len(oldEntry.Value))
 	}
@@ -80,6 +58,7 @@ func (s *MemoryStore) Set(key string, entry model.StorageEntry) {
 	entry.AccessCount = 0
 
 	s.store[key] = &entry
+	s.GarbageCollector.Track(key, &entry)
 }
 
 func (s *MemoryStore) Get(key string) (model.StorageEntry, bool) {
@@ -100,7 +79,6 @@ func (s *MemoryStore) Get(key string) (model.StorageEntry, bool) {
 		if atomic.AddInt64(&entry.AccessCount, 1) > 1 {
 			return model.StorageEntry{}, false
 		}
-
 		go s.Delete(key)
 		return *entry, true
 	}
@@ -118,11 +96,9 @@ func (s *MemoryStore) Delete(key string) {
 	if !exists {
 		return
 	}
-
 	s.usedMemory -= int64(len(key) + len(entry.Value))
-
 	delete(s.store, key)
-	return
+	s.GarbageCollector.Untrack(key)
 }
 
 func (s *MemoryStore) Exists(key string) bool {
@@ -133,7 +109,7 @@ func (s *MemoryStore) Exists(key string) bool {
 	return exists
 }
 
-func (s *MemoryStore) Keys() []string {
+func (s *MemoryStore) Keys() []string { // todo: optimize
 	s.mu.RLock()
 	defer s.mu.RUnlock()
 

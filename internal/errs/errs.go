@@ -17,3 +17,8 @@ var (
 	ErrBucketAlreadyExists = errors.New("bucket already exists")
 	ErrInvalidBucketName   = errors.New("invalid bucket name")
 )
+
+var (
+	ErrInconsistentState = errors.New("inconsistent state detected")
+	ErrDiskStoreFailed   = errors.New("disk store operation failed")
+)

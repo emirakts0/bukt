@@ -16,6 +16,7 @@ type StorageEntry struct {
 	SingleRead     bool
 	AccessCount    int64
 	LastAccess     int64 // UnixNano
+	OnDisk         bool
 }
 
 func (e StorageEntry) IsExpired() bool {

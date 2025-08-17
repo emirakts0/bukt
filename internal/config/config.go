@@ -5,6 +5,7 @@ import (
 	"strconv"
 	"strings"
 	"sync"
+	"time"
 )
 
 const (
@@ -17,7 +18,14 @@ const (
 	EnvShardCount           = "SHARD_COUNT"
 	EnvCompressionType      = "COMPRESSION_TYPE"
 	EnvCompressionThreshold = "COMPRESSION_THRESHOLD"
+	EnvEngineType           = "ENGINE_TYPE"
+	EnvEngineDataDir        = "ENGINE_DATA_DIR"
+	EnvEngineEvictionInt    = "ENGINE_EVICTION_INTERVAL"
+	EnvEngineEvictionBatch  = "ENGINE_EVICTION_BATCH_SIZE"
+	EnvEngineCompactionInt  = "ENGINE_COMPACTION_INTERVAL"
+)
 
+const (
 	// Default values
 	DefaultAuthUsername         = "emir"
 	DefaultAuthPassword         = "emir"
@@ -26,7 +34,12 @@ const (
 	DefaultLoggingLevel         = "info"
 	DefaultShardCount           = 4
 	DefaultCompressionType      = "none"
-	DefaultCompressionThreshold = 0 // 1024 1KB
+	DefaultCompressionThreshold = 0           // 1024 1KB
+	DefaultEngineType           = "in-memory" // in-memory, tiered
+	DefaultEngineDataDir        = "data"
+	DefaultEngineEvictionInt    = 1 * time.Minute
+	DefaultEngineEvictionBatch  = 100
+	DefaultEngineCompactionInt  = 5 * time.Minute
 )
 
 var (
@@ -39,6 +52,7 @@ type Configuration struct {
 	Server  ServerConfig
 	Logging LoggingConfig
 	Store   StoreConfig
+	Engine  EngineConfig
 }
 
 type AuthConfig struct {
@@ -61,6 +75,14 @@ type StoreConfig struct {
 	CompressionThreshold int64
 }
 
+type EngineConfig struct {
+	Type               string
+	DataDir            string
+	EvictionInterval   time.Duration
+	EvictionBatchSize  int
+	CompactionInterval time.Duration
+}
+
 func Config() *Configuration {
 	configOnce.Do(func() {
 		config = &Configuration{
@@ -80,6 +102,13 @@ func Config() *Configuration {
 				CompressionType:      getEnv(EnvCompressionType, DefaultCompressionType),
 				CompressionThreshold: getEnvAsInt64(EnvCompressionThreshold, DefaultCompressionThreshold),
 			},
+			Engine: EngineConfig{
+				Type:               getEnv(EnvEngineType, DefaultEngineType),
+				DataDir:            getEnv(EnvEngineDataDir, DefaultEngineDataDir),
+				EvictionInterval:   getEnvAsDuration(EnvEngineEvictionInt, DefaultEngineEvictionInt),
+				EvictionBatchSize:  getEnvAsInt(EnvEngineEvictionBatch, DefaultEngineEvictionBatch),
+				CompactionInterval: getEnvAsDuration(EnvEngineCompactionInt, DefaultEngineCompactionInt),
+			},
 		}
 	})
 	return config
@@ -88,6 +117,15 @@ func Config() *Configuration {
 func getEnv(key, defaultValue string) string {
 	if value, exists := os.LookupEnv(key); exists {
 		return value
+	}
+	return defaultValue
+}
+
+func getEnvAsDuration(key string, defaultValue time.Duration) time.Duration {
+	if value, exists := os.LookupEnv(key); exists {
+		if durationValue, err := time.ParseDuration(value); err == nil {
+			return durationValue
+		}
 	}
 	return defaultValue
 }
