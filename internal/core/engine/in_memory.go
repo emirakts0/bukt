@@ -7,7 +7,6 @@ import (
 	"time"
 )
 
-// get memory usage yerine usage olsun sadece. disk için de aynını kullanıcaz.
 type Store interface {
 	Set(key string, entry model.StorageEntry)
 	Get(key string) (model.StorageEntry, bool)
@@ -16,7 +15,7 @@ type Store interface {
 	Keys() []string
 	StartGC(interval time.Duration)
 	StopGC()
-	GetMemoryUsage() int64
+	Usage() int64
 }
 
 type MemoryStore struct {
@@ -120,7 +119,7 @@ func (s *MemoryStore) Keys() []string { // todo: optimize
 	return keys
 }
 
-func (s *MemoryStore) GetMemoryUsage() int64 {
+func (s *MemoryStore) Usage() int64 {
 	s.mu.RLock()
 	defer s.mu.RUnlock()
 	return s.usedMemory

@@ -45,8 +45,7 @@ func generateBucketID() string {
 	return id.String()
 }
 
-func NewBucketManager() BucketManager {
-	cfg := config.Config()
+func NewBucketManager(cfg *config.Configuration) BucketManager {
 	manager := &bucketManager{
 		buckets: make(map[string]*Bucket),
 		cfg:     cfg,
@@ -113,7 +112,7 @@ func (m *bucketManager) GetBucket(name string) (*Bucket, error) {
 	// Create a copy with updated stats
 	bucketCopy := *bucket
 	bucketCopy.KeyCount = int64(len(bucket.ShardContainer.Keys()))
-	bucketCopy.MemoryUsage = bucket.ShardContainer.GetMemoryUsage()
+	bucketCopy.MemoryUsage = bucket.ShardContainer.Usage()
 
 	return &bucketCopy, nil
 }
@@ -154,7 +153,7 @@ func (m *bucketManager) ListBuckets() []Bucket {
 	for _, bucket := range m.buckets {
 		bucketCopy := *bucket // Create a copy
 		bucketCopy.KeyCount = int64(len(bucket.ShardContainer.Keys()))
-		bucketCopy.MemoryUsage = bucket.ShardContainer.GetMemoryUsage()
+		bucketCopy.MemoryUsage = bucket.ShardContainer.Usage()
 		buckets = append(buckets, bucketCopy)
 	}
 

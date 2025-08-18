@@ -8,6 +8,8 @@ import (
 	"sync"
 	"time"
 
+	"key-value-store/internal/config"
+
 	"golang.org/x/sync/singleflight"
 )
 
@@ -20,14 +22,14 @@ type TieredStore struct {
 	*GarbageCollector
 }
 
-func NewTieredStore(memoryStore, diskStore Store) Store {
+func NewTieredStore(memoryStore, diskStore Store, cfg config.EngineConfig) Store {
 	s := &TieredStore{
 		memoryStore:  memoryStore,
 		diskStore:    diskStore,
 		evictionStop: make(chan struct{}),
 	}
 	s.GarbageCollector = NewGarbageCollector(s.Delete)
-	s.StartEviction(1*time.Minute, 10, 16)
+	s.StartEviction(cfg.EvictionInterval, cfg.EvictionBatchSize, 16) // 16 fixed sample size
 	return s
 }
 
@@ -40,7 +42,6 @@ func (s *TieredStore) Set(key string, entry model.StorageEntry) {
 	s.GarbageCollector.Track(key, &entry)
 }
 
-// todo: lasteaccess time gibi verilenin güncellenmesi konusunu ele al. Dosyadan erişildiği durumlarda güncellenmesi gereken veriler doğru şekilde güncelleniyor mu vb vb. edge caseleri ele al.
 func (s *TieredStore) Get(key string) (model.StorageEntry, bool) {
 	entry, exists := s.memoryStore.Get(key)
 	if !exists {
@@ -198,6 +199,7 @@ func (s *TieredStore) StopGC() {
 	s.GarbageCollector.Stop()
 }
 
-func (s *TieredStore) GetMemoryUsage() int64 {
-	return s.memoryStore.GetMemoryUsage()
+func (s *TieredStore) Usage() int64 {
+	// TieredStore only reports the memory usage of its hot layer.
+	return s.memoryStore.Usage()
 }

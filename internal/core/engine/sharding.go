@@ -27,10 +27,7 @@ func NewShardContainer(bucketName string, shardCount int, cfg config.EngineConfi
 			if err != nil {
 				panic(fmt.Sprintf("failed to create disk store for bucket %s, shard %d: %v", bucketName, shardIndex, err))
 			}
-			tieredStore := NewTieredStore(memoryStore, diskStore)
-			if ts, ok := tieredStore.(*TieredStore); ok {
-				ts.StartEviction(cfg.EvictionInterval, cfg.EvictionBatchSize, 16)
-			}
+			tieredStore := NewTieredStore(memoryStore, diskStore, cfg)
 			return tieredStore
 		default:
 			return NewMemoryStore()
@@ -131,15 +128,15 @@ func (sc *ShardContainer) StopGC() {
 	}
 }
 
-func (sc *ShardContainer) GetMemoryUsage() int64 {
-	var totalMemoryUsage int64
+func (sc *ShardContainer) Usage() int64 {
+	var totalUsage int64
 
 	if sc.shardCount == 1 {
-		return sc.shards[0].GetMemoryUsage()
+		return sc.shards[0].Usage()
 	}
 
 	for _, shard := range sc.shards {
-		totalMemoryUsage += shard.GetMemoryUsage()
+		totalUsage += shard.Usage()
 	}
-	return totalMemoryUsage
+	return totalUsage
 }

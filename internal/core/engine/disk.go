@@ -37,8 +37,11 @@ func (s *DiskStore) StartGC(interval time.Duration) {
 }
 
 func (s *DiskStore) StopGC() {
+	// No-op
 }
 
-func (s *DiskStore) GetMemoryUsage() int64 {
+func (s *DiskStore) Usage() int64 {
+	// For DiskStore, "usage" could mean file size.
+	// For now, returning 0 is consistent with not tracking disk space actively.
 	return 0
 }

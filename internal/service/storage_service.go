@@ -23,10 +23,10 @@ type storageService struct {
 	cfg           *config.Configuration
 }
 
-func NewStorageService(bucketManager core.BucketManager) IStorageService {
+func NewStorageService(bucketManager core.BucketManager, cfg *config.Configuration) IStorageService {
 	s := &storageService{
 		bucketManager: bucketManager,
-		cfg:           config.Config(),
+		cfg:           cfg,
 	}
 	return s
 }

@@ -1,6 +1,7 @@
 package http
 
 import (
+	"key-value-store/internal/config"
 	"key-value-store/internal/transport/http/handler"
 	"key-value-store/internal/transport/http/middleware"
 	"net/http"
@@ -18,14 +19,14 @@ type Router struct {
 	mux    *http.ServeMux
 }
 
-func NewRouter(kvHandler *handler.KVHandler, bucketHandler *handler.BucketHandler) *Router {
+func NewRouter(kvHandler *handler.KVHandler, bucketHandler *handler.BucketHandler, authCfg config.AuthConfig) *Router {
 	mux := http.NewServeMux()
 
 	commonMiddleware := []middleware.Middleware{
 		middleware.Recovery,
 		middleware.Correlation,
 		middleware.Logger,
-		middleware.Auth,
+		middleware.NewAuthMiddleware(authCfg).Handler,
 	}
 
 	// Bucket management endpoints
