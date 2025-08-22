@@ -9,7 +9,7 @@ import (
 
 type GarbageCollector struct {
 	mu         sync.Mutex
-	ttlHeap    TtlHeap
+	ttlHeap    ttlHeap
 	ttlIndex   map[string]int
 	stopCh     chan struct{}
 	deleteFunc func(key string)
@@ -17,7 +17,7 @@ type GarbageCollector struct {
 
 func NewGarbageCollector(deleteFunc func(key string)) *GarbageCollector {
 	gc := &GarbageCollector{
-		ttlHeap:    make(TtlHeap, 0),
+		ttlHeap:    make(ttlHeap, 0),
 		ttlIndex:   make(map[string]int),
 		stopCh:     make(chan struct{}),
 		deleteFunc: deleteFunc,

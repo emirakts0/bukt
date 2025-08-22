@@ -6,24 +6,24 @@ type TtlHeapItem struct {
 	Index    int
 }
 
-type TtlHeap []*TtlHeapItem
+type ttlHeap []*TtlHeapItem
 
-func (h TtlHeap) Len() int           { return len(h) }
-func (h TtlHeap) Less(i, j int) bool { return h[i].ExpireAt < h[j].ExpireAt }
-func (h TtlHeap) Swap(i, j int) {
+func (h ttlHeap) Len() int           { return len(h) }
+func (h ttlHeap) Less(i, j int) bool { return h[i].ExpireAt < h[j].ExpireAt }
+func (h ttlHeap) Swap(i, j int) {
 	h[i], h[j] = h[j], h[i]
 	h[i].Index = i
 	h[j].Index = j
 }
 
-func (h *TtlHeap) Push(x interface{}) {
+func (h *ttlHeap) Push(x interface{}) {
 	n := len(*h)
 	item := x.(*TtlHeapItem)
 	item.Index = n
 	*h = append(*h, item)
 }
 
-func (h *TtlHeap) Pop() interface{} {
+func (h *ttlHeap) Pop() interface{} {
 	old := *h
 	n := len(old)
 	item := old[n-1]
