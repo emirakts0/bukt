@@ -8,7 +8,6 @@ import (
 )
 
 const (
-	// Environment variable keys
 	EnvAuthUsername           = "AUTH_USERNAME"
 	EnvAuthPassword           = "AUTH_PASSWORD"
 	EnvServerPort             = "SERVER_PORT"
@@ -24,7 +23,6 @@ const (
 )
 
 const (
-	// Default values
 	DefaultAuthUsername           = "emir"
 	DefaultAuthPassword           = "emir"
 	DefaultServerPort             = 8080
@@ -32,8 +30,8 @@ const (
 	DefaultLoggingLevel           = "info"
 	DefaultShardCount             = 4
 	DefaultCompressionType        = "none"
-	DefaultCompressionThreshold   = 0           // 1024 1KB
-	DefaultEngineType             = "in-memory" // in-memory, tiered
+	DefaultCompressionThreshold   = 0
+	DefaultEngineType             = "in-memory"
 	DefaultEngineDataDir          = "data"
 	DefaultEngineEvictionInterval = 1 * time.Minute
 	DefaultEngineEvictionBatch    = 100

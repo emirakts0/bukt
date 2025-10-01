@@ -1,14 +1,13 @@
 package engine
 
 import (
-	"key-value-store/internal/core/model"
+	"key-value-store/internal/config"
+	"key-value-store/internal/core"
 	"key-value-store/internal/errs"
 	"math"
 	"math/rand"
 	"sync"
 	"time"
-
-	"key-value-store/internal/config"
 
 	"golang.org/x/sync/singleflight"
 )
@@ -33,7 +32,7 @@ func NewTieredStore(memoryStore, diskStore Store, cfg config.EngineConfig) Store
 	return s
 }
 
-func (s *TieredStore) Set(key string, entry model.StorageEntry) {
+func (s *TieredStore) Set(key string, entry core.StorageEntry) {
 	s.mu.Lock()
 	defer s.mu.Unlock()
 
@@ -42,10 +41,10 @@ func (s *TieredStore) Set(key string, entry model.StorageEntry) {
 	s.GarbageCollector.Track(key, &entry)
 }
 
-func (s *TieredStore) Get(key string) (model.StorageEntry, bool) {
+func (s *TieredStore) Get(key string) (core.StorageEntry, bool) {
 	entry, exists := s.memoryStore.Get(key)
 	if !exists {
-		return model.StorageEntry{}, false
+		return core.StorageEntry{}, false
 	}
 
 	if !entry.OnDisk {
@@ -67,10 +66,10 @@ func (s *TieredStore) Get(key string) (model.StorageEntry, bool) {
 	})
 
 	if err != nil {
-		return model.StorageEntry{}, false
+		return core.StorageEntry{}, false
 	}
 
-	return v.(model.StorageEntry), true
+	return v.(core.StorageEntry), true
 }
 
 func (s *TieredStore) Delete(key string) {
@@ -135,11 +134,11 @@ func (s *TieredStore) evictLRU(batchSize int, sampleSize int) {
 		return
 	}
 
-	toEvict := make(map[string]model.StorageEntry)
+	toEvict := make(map[string]core.StorageEntry)
 
 	for i := 0; i < batchSize && len(toEvict) < batchSize; i++ {
 		var oldestKey string
-		var oldestEntry model.StorageEntry
+		var oldestEntry core.StorageEntry
 		oldestAccessTime := int64(math.MaxInt64)
 
 		for j := 0; j < sampleSize; j++ {
@@ -200,6 +199,15 @@ func (s *TieredStore) StopGC() {
 }
 
 func (s *TieredStore) Usage() int64 {
-	// TieredStore only reports the memory usage of its hot layer.
 	return s.memoryStore.Usage()
+}
+
+func (s *TieredStore) Close() error {
+	s.StopEviction()
+	s.GarbageCollector.Stop()
+
+	if diskStore, ok := s.diskStore.(*DiskStore); ok {
+		return diskStore.Close()
+	}
+	return nil
 }

@@ -23,7 +23,6 @@ type Bucket struct {
 	ShardContainer *engine.ShardContainer
 }
 
-// BucketManager manages multiple buckets with direct shard container pointers
 type BucketManager interface {
 	CreateBucket(name, description string, shardCount int) (*Bucket, error)
 	GetBucket(name string) (*Bucket, error)
@@ -187,7 +186,9 @@ func (m *bucketManager) Shutdown() {
 	defer m.mu.Unlock()
 
 	for name, bucket := range m.buckets {
-		slog.Debug("BucketManager: Stopping GC for bucket", "name", name, "id", bucket.ID)
-		bucket.ShardContainer.StopGC()
+		slog.Debug("BucketManager: Closing bucket", "name", name, "id", bucket.ID)
+		if err := bucket.ShardContainer.Close(); err != nil {
+			slog.Error("BucketManager: Failed to close bucket", "name", name, "error", err)
+		}
 	}
 }

@@ -1,15 +1,15 @@
 package engine
 
 import (
-	"key-value-store/internal/core/model"
+	"key-value-store/internal/core"
 	"sync"
 	"sync/atomic"
 	"time"
 )
 
 type Store interface {
-	Set(key string, entry model.StorageEntry)
-	Get(key string) (model.StorageEntry, bool)
+	Set(key string, entry core.StorageEntry)
+	Get(key string) (core.StorageEntry, bool)
 	Delete(key string)
 	Exists(key string) bool
 	Keys() []string
@@ -19,7 +19,7 @@ type Store interface {
 }
 
 type MemoryStore struct {
-	store      map[string]*model.StorageEntry
+	store      map[string]*core.StorageEntry
 	mu         sync.RWMutex
 	usedMemory int64
 	*GarbageCollector
@@ -27,7 +27,7 @@ type MemoryStore struct {
 
 func NewMemoryStore() Store {
 	ms := &MemoryStore{
-		store:      make(map[string]*model.StorageEntry),
+		store:      make(map[string]*core.StorageEntry),
 		usedMemory: 0,
 	}
 	ms.GarbageCollector = NewGarbageCollector(ms.Delete)
@@ -42,7 +42,7 @@ func (s *MemoryStore) StopGC() {
 	s.GarbageCollector.Stop()
 }
 
-func (s *MemoryStore) Set(key string, entry model.StorageEntry) {
+func (s *MemoryStore) Set(key string, entry core.StorageEntry) {
 	s.mu.Lock()
 	defer s.mu.Unlock()
 
@@ -60,23 +60,23 @@ func (s *MemoryStore) Set(key string, entry model.StorageEntry) {
 	s.GarbageCollector.Track(key, &entry)
 }
 
-func (s *MemoryStore) Get(key string) (model.StorageEntry, bool) {
+func (s *MemoryStore) Get(key string) (core.StorageEntry, bool) {
 	s.mu.RLock()
 	defer s.mu.RUnlock()
 
 	entry, exists := s.store[key]
 	if !exists {
-		return model.StorageEntry{}, false
+		return core.StorageEntry{}, false
 	}
 
 	if entry.IsExpired() {
 		go s.Delete(key)
-		return model.StorageEntry{}, false
+		return core.StorageEntry{}, false
 	}
 
 	if entry.SingleRead {
 		if atomic.AddInt64(&entry.AccessCount, 1) > 1 {
-			return model.StorageEntry{}, false
+			return core.StorageEntry{}, false
 		}
 		go s.Delete(key)
 		return *entry, true

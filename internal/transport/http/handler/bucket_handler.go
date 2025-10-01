@@ -7,7 +7,7 @@ import (
 	"key-value-store/internal/transport/http/handler/request"
 	"key-value-store/internal/transport/http/handler/response"
 	"key-value-store/internal/transport/http/middleware"
-	"key-value-store/internal/util/http_util"
+	"key-value-store/internal/util"
 	"log/slog"
 	"net/http"
 )
@@ -26,15 +26,15 @@ func (h *BucketHandler) CreateBucket(w http.ResponseWriter, r *http.Request) {
 	crrid := middleware.CorrelationID(r.Context())
 
 	var req request.CreateBucketRequest
-	if err := http_util.ReadJSONBody(r, &req, w); err != nil {
+	if err := util.ReadJSONBody(r, &req, w); err != nil {
 		slog.Debug("Handler: Invalid JSON body", "crr-id", crrid, "error", err)
-		http_util.WriteBadRequest(w, "Invalid JSON.")
+		util.WriteBadRequest(w, "Invalid JSON.")
 		return
 	}
 
 	if err := req.Validate(); err != nil {
 		slog.Debug("Handler: Invalid request payload", "crr-id", crrid, "error", err)
-		http_util.WriteBadRequest(w, err.Error())
+		util.WriteBadRequest(w, err.Error())
 		return
 	}
 
@@ -42,18 +42,18 @@ func (h *BucketHandler) CreateBucket(w http.ResponseWriter, r *http.Request) {
 	if err != nil {
 		switch {
 		case errors.Is(err, errs.ErrBucketAlreadyExists):
-			http_util.WriteConflict(w, "Bucket already exists")
+			util.WriteConflict(w, "Bucket already exists")
 		case errors.Is(err, errs.ErrInvalidBucketName):
-			http_util.WriteBadRequest(w, "Invalid bucket name")
+			util.WriteBadRequest(w, "Invalid bucket name")
 		default:
 			slog.Error("Handler: Failed to create bucket", "crr-id", crrid, "error", err)
-			http_util.WriteInternalError(w)
+			util.WriteInternalError(w)
 		}
 		return
 	}
 
 	resp := response.NewBucketResponseFromBucket(*bucket)
-	http_util.WriteCreated(w, resp)
+	util.WriteCreated(w, resp)
 }
 
 func (h *BucketHandler) GetBucket(w http.ResponseWriter, r *http.Request) {
@@ -62,7 +62,7 @@ func (h *BucketHandler) GetBucket(w http.ResponseWriter, r *http.Request) {
 
 	if bucketName == "" {
 		slog.Debug("Handler: Bucket name is required", "crr-id", crrid)
-		http_util.WriteBadRequest(w, "Bucket name is required")
+		util.WriteBadRequest(w, "Bucket name is required")
 		return
 	}
 
@@ -70,16 +70,16 @@ func (h *BucketHandler) GetBucket(w http.ResponseWriter, r *http.Request) {
 	if err != nil {
 		switch {
 		case errors.Is(err, errs.ErrBucketNotFound):
-			http_util.WriteNotFound(w, "Bucket not found")
+			util.WriteNotFound(w, "Bucket not found")
 		default:
 			slog.Error("Handler: Failed to get bucket", "crr-id", crrid, "bucket", bucketName, "error", err)
-			http_util.WriteInternalError(w)
+			util.WriteInternalError(w)
 		}
 		return
 	}
 
 	resp := response.NewBucketResponseFromBucket(*bucket)
-	http_util.WriteOK(w, resp)
+	util.WriteOK(w, resp)
 }
 
 func (h *BucketHandler) DeleteBucket(w http.ResponseWriter, r *http.Request) {
@@ -88,7 +88,7 @@ func (h *BucketHandler) DeleteBucket(w http.ResponseWriter, r *http.Request) {
 
 	if bucketName == "" {
 		slog.Debug("Handler: Bucket name is required", "crr-id", crrid)
-		http_util.WriteBadRequest(w, "Bucket name is required")
+		util.WriteBadRequest(w, "Bucket name is required")
 		return
 	}
 
@@ -96,15 +96,15 @@ func (h *BucketHandler) DeleteBucket(w http.ResponseWriter, r *http.Request) {
 	if err != nil {
 		switch {
 		case errors.Is(err, errs.ErrBucketNotFound):
-			http_util.WriteNotFound(w, "Bucket not found")
+			util.WriteNotFound(w, "Bucket not found")
 		default:
 			slog.Error("Handler: Failed to delete bucket", "crr-id", crrid, "bucket", bucketName, "error", err)
-			http_util.WriteInternalError(w)
+			util.WriteInternalError(w)
 		}
 		return
 	}
 
-	http_util.WriteNoContent(w, "Bucket deleted successfully")
+	util.WriteNoContent(w, "Bucket deleted successfully")
 }
 
 func (h *BucketHandler) ListBuckets(w http.ResponseWriter, r *http.Request) {
@@ -113,10 +113,10 @@ func (h *BucketHandler) ListBuckets(w http.ResponseWriter, r *http.Request) {
 	buckets, err := h.service.ListBuckets(r.Context())
 	if err != nil {
 		slog.Error("Handler: Failed to list buckets", "crr-id", crrid, "error", err)
-		http_util.WriteInternalError(w)
+		util.WriteInternalError(w)
 		return
 	}
 
 	resp := response.NewBucketListResponse(buckets)
-	http_util.WriteOK(w, resp)
+	util.WriteOK(w, resp)
 }

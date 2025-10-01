@@ -1,5 +1,5 @@
 <div align="center">
-  <img src="./readme/bukt_icon.png" alt="Bukt Logo" width="200">
+  <img src="./readme/banner.png" alt="Bukt Logo" width="1000">
   <h1 align="center">Bukt</h1>
   <p align="center">
     A high-performance in-memory key-value store with an intelligent tiered storage engine.

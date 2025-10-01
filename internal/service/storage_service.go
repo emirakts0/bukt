@@ -4,17 +4,16 @@ import (
 	"context"
 	"key-value-store/internal/config"
 	"key-value-store/internal/core"
-	"key-value-store/internal/core/model"
 	"key-value-store/internal/errs"
 	"key-value-store/internal/transport/http/middleware"
-	"key-value-store/internal/util/compression"
+	"key-value-store/internal/util"
 	"log/slog"
 	"time"
 )
 
 type IStorageService interface {
-	Set(ctx context.Context, bucketName, key, value string, ttl int64, singleRead bool) (model.StorageEntry, error)
-	Get(ctx context.Context, bucketName, key string) (model.StorageEntry, error)
+	Set(ctx context.Context, bucketName, key, value string, ttl int64, singleRead bool) (core.StorageEntry, error)
+	Get(ctx context.Context, bucketName, key string) (core.StorageEntry, error)
 	Delete(ctx context.Context, bucketName, key string) error
 }
 
@@ -31,20 +30,19 @@ func NewStorageService(bucketManager core.BucketManager, cfg *config.Configurati
 	return s
 }
 
-func (s *storageService) Set(ctx context.Context, bucketName, key, value string, ttl int64, singleRead bool) (model.StorageEntry, error) {
+func (s *storageService) Set(ctx context.Context, bucketName, key, value string, ttl int64, singleRead bool) (core.StorageEntry, error) {
 	crrid := middleware.CorrelationID(ctx)
 	slog.Debug("Service: Attempting to set key-value pair in bucket", "crr-id", crrid, "bucket", bucketName, "key", key, "ttl", ttl, "single_read", singleRead)
 
 	if ttl < 0 {
 		slog.Debug("Service: Invalid TTL provided", "crr-id", crrid, "bucket", bucketName, "key", key, "ttl", ttl)
-		return model.StorageEntry{}, errs.ErrInvalidTTL
+		return core.StorageEntry{}, errs.ErrInvalidTTL
 	}
 
-	// Get bucket engine from bucket manager
 	bucketStore, err := s.bucketManager.GetBucketStore(bucketName)
 	if err != nil {
 		slog.Error("Service: Failed to get bucket engine", "crr-id", crrid, "bucket", bucketName, "error", err)
-		return model.StorageEntry{}, err
+		return core.StorageEntry{}, err
 	}
 
 	now := time.Now()
@@ -53,11 +51,10 @@ func (s *storageService) Set(ctx context.Context, bucketName, key, value string,
 		exp = now.Add(time.Duration(ttl) * time.Second)
 	}
 
-	// Convert string to bytes immediately
 	valueBytes := []byte(value)
 	originalSize := int64(len(valueBytes))
 
-	entry := model.StorageEntry{
+	entry := core.StorageEntry{
 		Key:          key,
 		Value:        valueBytes,
 		TTL:          ttl,
@@ -67,12 +64,11 @@ func (s *storageService) Set(ctx context.Context, bucketName, key, value string,
 		OriginalSize: originalSize,
 	}
 
-	// Compress if value size is above threshold and compression is enabled
 	if s.cfg.Store.CompressionType != "none" && originalSize > s.cfg.Store.CompressionThreshold {
-		compressedValue, err := compression.CompressBytes(valueBytes, compression.CompressionType(s.cfg.Store.CompressionType))
+		compressedValue, err := util.CompressBytes(valueBytes, util.CompressionType(s.cfg.Store.CompressionType))
 		if err != nil {
 			slog.Error("Service: Failed to compress value", "crr-id", crrid, "bucket", bucketName, "key", key, "error", err)
-			return model.StorageEntry{}, errs.ErrCompression
+			return core.StorageEntry{}, errs.ErrCompression
 		}
 		entry.Value = compressedValue
 		entry.Compressed = true
@@ -87,29 +83,27 @@ func (s *storageService) Set(ctx context.Context, bucketName, key, value string,
 	return entry, nil
 }
 
-func (s *storageService) Get(ctx context.Context, bucketName, key string) (model.StorageEntry, error) {
+func (s *storageService) Get(ctx context.Context, bucketName, key string) (core.StorageEntry, error) {
 	crrid := middleware.CorrelationID(ctx)
 	slog.Debug("Service: Attempting to get value from bucket", "crr-id", crrid, "bucket", bucketName, "key", key)
 
-	// Get bucket engine from bucket manager
 	bucketStore, err := s.bucketManager.GetBucketStore(bucketName)
 	if err != nil {
 		slog.Error("Service: Failed to get bucket engine", "crr-id", crrid, "bucket", bucketName, "error", err)
-		return model.StorageEntry{}, err
+		return core.StorageEntry{}, err
 	}
 
 	entry, exists := bucketStore.Get(key)
 	if !exists {
 		slog.Debug("Service: Key not found in bucket engine", "crr-id", crrid, "bucket", bucketName, "key", key)
-		return model.StorageEntry{}, errs.ErrKeyNotFound
+		return core.StorageEntry{}, errs.ErrKeyNotFound
 	}
 
-	// Decompress if needed
 	if entry.Compressed {
-		decompressed, err := compression.DecompressBytes(entry.Value, compression.CompressionType(s.cfg.Store.CompressionType))
+		decompressed, err := util.DecompressBytes(entry.Value, util.CompressionType(s.cfg.Store.CompressionType))
 		if err != nil {
 			slog.Error("Service: Failed to decompress value", "crr-id", crrid, "bucket", bucketName, "key", key, "error", err)
-			return model.StorageEntry{}, errs.ErrCompression
+			return core.StorageEntry{}, errs.ErrCompression
 		}
 		entry.Value = decompressed
 		entry.Compressed = false

@@ -4,7 +4,7 @@ import (
 	"fmt"
 	"hash/fnv"
 	"key-value-store/internal/config"
-	"key-value-store/internal/core/model"
+	"key-value-store/internal/core"
 	"path/filepath"
 	"sync"
 	"time"
@@ -67,12 +67,12 @@ func (sc *ShardContainer) getShard(key string) Store {
 	return sc.shards[hash.Sum32()%uint32(sc.shardCount)]
 }
 
-func (sc *ShardContainer) Set(key string, entry model.StorageEntry) {
+func (sc *ShardContainer) Set(key string, entry core.StorageEntry) {
 	shard := sc.getShard(key)
 	shard.Set(key, entry)
 }
 
-func (sc *ShardContainer) Get(key string) (model.StorageEntry, bool) {
+func (sc *ShardContainer) Get(key string) (core.StorageEntry, bool) {
 	shard := sc.getShard(key)
 	return shard.Get(key)
 }
@@ -126,6 +126,23 @@ func (sc *ShardContainer) StopGC() {
 	for _, shard := range sc.shards {
 		shard.StopGC()
 	}
+}
+
+func (sc *ShardContainer) Close() error {
+	for _, shard := range sc.shards {
+		shard.StopGC()
+		if diskStore, ok := shard.(*DiskStore); ok {
+			if err := diskStore.Close(); err != nil {
+				return err
+			}
+		}
+		if tieredStore, ok := shard.(*TieredStore); ok {
+			if err := tieredStore.Close(); err != nil {
+				return err
+			}
+		}
+	}
+	return nil
 }
 
 func (sc *ShardContainer) Usage() int64 {

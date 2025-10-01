@@ -2,7 +2,7 @@ package engine
 
 import (
 	"container/heap"
-	"key-value-store/internal/core/model"
+	"key-value-store/internal/core"
 	"sync"
 	"time"
 )
@@ -26,7 +26,7 @@ func NewGarbageCollector(deleteFunc func(key string)) *GarbageCollector {
 	return gc
 }
 
-func (gc *GarbageCollector) Track(key string, entry *model.StorageEntry) {
+func (gc *GarbageCollector) Track(key string, entry *core.StorageEntry) {
 	gc.mu.Lock()
 	defer gc.mu.Unlock()
 

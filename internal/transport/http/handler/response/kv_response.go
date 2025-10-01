@@ -1,7 +1,7 @@
 package response
 
 import (
-	"key-value-store/internal/core/model"
+	"key-value-store/internal/core"
 	"time"
 )
 
@@ -25,10 +25,7 @@ func NewKVResponse(key, value string, createdAt, expiresAt time.Time) KVResponse
 	}
 }
 
-// NewKVResponseFromEntry creates a KVResponse from a StorageEntry
-func NewKVResponseFromEntry(entry model.StorageEntry) KVResponse {
-	// Convert byte array to string for JSON response
-	// Simple string conversion - API remains backward compatible
+func NewKVResponseFromEntry(entry core.StorageEntry) KVResponse {
 	valueStr := string(entry.Value)
 
 	return KVResponse{

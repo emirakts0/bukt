@@ -1,8 +1,6 @@
-package model
+package core
 
-import (
-	"time"
-)
+import "time"
 
 type StorageEntry struct {
 	Key            string
@@ -15,7 +13,7 @@ type StorageEntry struct {
 	ExpiresAt      time.Time
 	SingleRead     bool
 	AccessCount    int64
-	LastAccess     int64 // UnixNano
+	LastAccess     int64
 	OnDisk         bool
 }
 
