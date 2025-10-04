@@ -1,7 +1,7 @@
 package response
 
 import (
-	"key-value-store/internal/core"
+	"key-value-store/internal/engine"
 	"time"
 )
 
@@ -25,7 +25,7 @@ func NewKVResponse(key, value string, createdAt, expiresAt time.Time) KVResponse
 	}
 }
 
-func NewKVResponseFromEntry(entry core.StorageEntry) KVResponse {
+func NewKVResponseFromEntry(entry engine.StorageEntry) KVResponse {
 	valueStr := string(entry.Value)
 
 	return KVResponse{

@@ -16,9 +16,10 @@ var (
 	ErrBucketNotFound      = errors.New("bucket not found")
 	ErrBucketAlreadyExists = errors.New("bucket already exists")
 	ErrInvalidBucketName   = errors.New("invalid bucket name")
+	ErrUnauthorized        = errors.New("unauthorized")
+	ErrCannotDeleteDefault = errors.New("cannot delete default bucket")
 )
 
 var (
 	ErrInconsistentState = errors.New("inconsistent state detected")
-	ErrDiskStoreFailed   = errors.New("disk store operation failed")
 )

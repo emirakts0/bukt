@@ -2,60 +2,82 @@ package service
 
 import (
 	"context"
-	"key-value-store/internal/core"
+	"encoding/hex"
+	"key-value-store/internal/bucket"
+	"key-value-store/internal/errs"
 	"key-value-store/internal/transport/http/middleware"
 	"log/slog"
 )
 
+type CreateBucketResult struct {
+	Metadata  *bucket.BucketMetadata
+	AuthToken string
+}
+
 type IBucketService interface {
-	CreateBucket(ctx context.Context, name, description string, shardCount int) (*core.Bucket, error)
-	GetBucket(ctx context.Context, name string) (*core.Bucket, error)
-	DeleteBucket(ctx context.Context, name string) error
-	ListBuckets(ctx context.Context) ([]core.Bucket, error)
+	CreateBucket(ctx context.Context, name, description string, shardCount int) (*CreateBucketResult, error)
+	GetBucket(ctx context.Context, name string) (*bucket.BucketMetadata, error)
+	DeleteBucket(ctx context.Context, name, tokenHex string) error
+	ListBuckets(ctx context.Context) ([]*bucket.BucketMetadata, error)
 }
 
 type bucketService struct {
-	bucketManager core.BucketManager
+	bucketManager bucket.BucketManager
 }
 
-func NewBucketService(bucketManager core.BucketManager) IBucketService {
+func NewBucketService(bucketManager bucket.BucketManager) IBucketService {
 	return &bucketService{
 		bucketManager: bucketManager,
 	}
 }
 
-func (s *bucketService) CreateBucket(ctx context.Context, name, description string, shardCount int) (*core.Bucket, error) {
+func (s *bucketService) CreateBucket(ctx context.Context, name, description string, shardCount int) (*CreateBucketResult, error) {
 	crrid := middleware.CorrelationID(ctx)
 	slog.Debug("BucketService: Creating bucket", "crr-id", crrid, "name", name, "shard_count", shardCount)
 
-	bucket, err := s.bucketManager.CreateBucket(name, description, shardCount)
+	tokenHex, err := s.bucketManager.CreateBucket(name, description, shardCount)
 	if err != nil {
 		slog.Error("BucketService: Failed to create bucket", "crr-id", crrid, "name", name, "error", err)
 		return nil, err
 	}
 
+	meta, ok := s.bucketManager.GetBucket(name)
+	if !ok {
+		slog.Error("BucketService: Bucket not found after creation", "crr-id", crrid, "name", name)
+		return nil, errs.ErrBucketNotFound
+	}
+
 	slog.Info("BucketService: Created bucket", "crr-id", crrid, "name", name, "shard_count", shardCount)
-	return bucket, nil
+	return &CreateBucketResult{
+		Metadata:  meta,
+		AuthToken: tokenHex,
+	}, nil
 }
 
-func (s *bucketService) GetBucket(ctx context.Context, name string) (*core.Bucket, error) {
+func (s *bucketService) GetBucket(ctx context.Context, name string) (*bucket.BucketMetadata, error) {
 	crrid := middleware.CorrelationID(ctx)
 	slog.Debug("BucketService: Getting bucket", "crr-id", crrid, "name", name)
 
-	bucket, err := s.bucketManager.GetBucket(name)
-	if err != nil {
+	meta, ok := s.bucketManager.GetBucket(name)
+	if !ok {
 		slog.Debug("BucketService: Bucket not found", "crr-id", crrid, "name", name)
-		return nil, err
+		return nil, errs.ErrBucketNotFound
 	}
 
-	return bucket, nil
+	return meta, nil
 }
 
-func (s *bucketService) DeleteBucket(ctx context.Context, name string) error {
+func (s *bucketService) DeleteBucket(ctx context.Context, name, tokenHex string) error {
 	crrid := middleware.CorrelationID(ctx)
 	slog.Debug("BucketService: Deleting bucket", "crr-id", crrid, "name", name)
 
-	err := s.bucketManager.DeleteBucket(name)
+	tokenBytes, err := hex.DecodeString(tokenHex)
+	if err != nil || len(tokenBytes) != 16 {
+		slog.Debug("BucketService: Invalid token format", "crr-id", crrid, "name", name)
+		return errs.ErrUnauthorized
+	}
+
+	err = s.bucketManager.DeleteBucket(name, tokenBytes)
 	if err != nil {
 		slog.Error("BucketService: Failed to delete bucket", "crr-id", crrid, "name", name, "error", err)
 		return err
@@ -65,7 +87,7 @@ func (s *bucketService) DeleteBucket(ctx context.Context, name string) error {
 	return nil
 }
 
-func (s *bucketService) ListBuckets(ctx context.Context) ([]core.Bucket, error) {
+func (s *bucketService) ListBuckets(ctx context.Context) ([]*bucket.BucketMetadata, error) {
 	crrid := middleware.CorrelationID(ctx)
 	slog.Debug("BucketService: Listing buckets", "crr-id", crrid)
 

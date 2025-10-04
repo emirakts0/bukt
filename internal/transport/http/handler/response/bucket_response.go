@@ -1,7 +1,7 @@
 package response
 
 import (
-	"key-value-store/internal/core"
+	"key-value-store/internal/bucket"
 	"time"
 )
 
@@ -13,6 +13,7 @@ type BucketResponse struct {
 	ShardCount  int    `json:"shard_count"`
 	KeyCount    int64  `json:"key_count"`
 	MemoryUsage int64  `json:"memory_usage"`
+	AuthToken   string `json:"auth_token,omitempty"`
 }
 
 type BucketListResponse struct {
@@ -20,22 +21,23 @@ type BucketListResponse struct {
 	Count   int              `json:"count"`
 }
 
-func NewBucketResponseFromBucket(bucket core.Bucket) BucketResponse {
+func NewBucketResponseFromMetadata(meta *bucket.BucketMetadata, token string) BucketResponse {
 	return BucketResponse{
-		ID:          bucket.ID,
-		Name:        bucket.Name,
-		Description: bucket.Description,
-		CreatedAt:   bucket.CreatedAt.Format(time.RFC3339),
-		ShardCount:  bucket.ShardCount,
-		KeyCount:    bucket.KeyCount,
-		MemoryUsage: bucket.MemoryUsage,
+		ID:          meta.ID,
+		Name:        meta.Name,
+		Description: meta.Description,
+		CreatedAt:   meta.CreatedAt.Format(time.RFC3339),
+		ShardCount:  meta.ShardCount,
+		KeyCount:    meta.KeyCount,
+		MemoryUsage: meta.MemoryUsage,
+		AuthToken:   token,
 	}
 }
 
-func NewBucketListResponse(buckets []core.Bucket) BucketListResponse {
+func NewBucketListResponse(buckets []*bucket.BucketMetadata) BucketListResponse {
 	bucketResponses := make([]BucketResponse, len(buckets))
-	for i, bucket := range buckets {
-		bucketResponses[i] = NewBucketResponseFromBucket(bucket)
+	for i, b := range buckets {
+		bucketResponses[i] = NewBucketResponseFromMetadata(b, "")
 	}
 
 	return BucketListResponse{

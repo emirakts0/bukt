@@ -1,7 +1,18 @@
-package core
+package engine
 
 import "time"
 
+type Store interface {
+	Set(key string, entry StorageEntry)
+	Get(key string) (StorageEntry, bool)
+	Delete(key string)
+	Exists(key string) bool
+	Keys() []string
+	StartGC(interval time.Duration)
+	StopGC()
+	Usage() int64
+	Count() int64
+}
 type StorageEntry struct {
 	Key            string
 	Value          []byte
@@ -12,9 +23,8 @@ type StorageEntry struct {
 	CreatedAt      time.Time
 	ExpiresAt      time.Time
 	SingleRead     bool
-	AccessCount    int64
+	AccessCount    int32
 	LastAccess     int64
-	OnDisk         bool
 }
 
 func (e StorageEntry) IsExpired() bool {

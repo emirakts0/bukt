@@ -38,7 +38,7 @@ func (h *BucketHandler) CreateBucket(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	bucket, err := h.service.CreateBucket(r.Context(), req.Name, req.Description, req.ShardCount)
+	result, err := h.service.CreateBucket(r.Context(), req.Name, req.Description, req.ShardCount)
 	if err != nil {
 		switch {
 		case errors.Is(err, errs.ErrBucketAlreadyExists):
@@ -52,7 +52,7 @@ func (h *BucketHandler) CreateBucket(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	resp := response.NewBucketResponseFromBucket(*bucket)
+	resp := response.NewBucketResponseFromMetadata(result.Metadata, result.AuthToken)
 	util.WriteCreated(w, resp)
 }
 
@@ -66,7 +66,7 @@ func (h *BucketHandler) GetBucket(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	bucket, err := h.service.GetBucket(r.Context(), bucketName)
+	meta, err := h.service.GetBucket(r.Context(), bucketName)
 	if err != nil {
 		switch {
 		case errors.Is(err, errs.ErrBucketNotFound):
@@ -78,7 +78,7 @@ func (h *BucketHandler) GetBucket(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	resp := response.NewBucketResponseFromBucket(*bucket)
+	resp := response.NewBucketResponseFromMetadata(meta, "")
 	util.WriteOK(w, resp)
 }
 
@@ -92,11 +92,28 @@ func (h *BucketHandler) DeleteBucket(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	err := h.service.DeleteBucket(r.Context(), bucketName)
+	var req request.DeleteBucketRequest
+	if err := util.ReadJSONBody(r, &req, w); err != nil {
+		slog.Debug("Handler: Invalid JSON body", "crr-id", crrid, "error", err)
+		util.WriteBadRequest(w, "Invalid JSON.")
+		return
+	}
+
+	if err := req.Validate(); err != nil {
+		slog.Debug("Handler: Invalid request payload", "crr-id", crrid, "error", err)
+		util.WriteBadRequest(w, err.Error())
+		return
+	}
+
+	err := h.service.DeleteBucket(r.Context(), bucketName, req.AuthToken)
 	if err != nil {
 		switch {
 		case errors.Is(err, errs.ErrBucketNotFound):
 			util.WriteNotFound(w, "Bucket not found")
+		case errors.Is(err, errs.ErrUnauthorized):
+			util.WriteUnauthorized(w, "Invalid auth token")
+		case errors.Is(err, errs.ErrCannotDeleteDefault):
+			util.WriteBadRequest(w, "Cannot delete default bucket")
 		default:
 			slog.Error("Handler: Failed to delete bucket", "crr-id", crrid, "bucket", bucketName, "error", err)
 			util.WriteInternalError(w)

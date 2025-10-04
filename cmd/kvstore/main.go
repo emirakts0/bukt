@@ -1,8 +1,8 @@
 package main
 
 import (
+	"key-value-store/internal/bucket"
 	"key-value-store/internal/config"
-	"key-value-store/internal/core"
 	"key-value-store/internal/logger"
 	"key-value-store/internal/service"
 	"key-value-store/internal/transport/http"
@@ -32,18 +32,12 @@ func main() {
 			slog.String("compression_type", configs.Store.CompressionType),
 			slog.Int64("compression_threshold", configs.Store.CompressionThreshold),
 		),
-		slog.Group("engine",
-			slog.String("type", configs.Engine.Type),
-			slog.String("data_dir", configs.Engine.DataDir),
-			slog.Duration("eviction_interval", configs.Engine.EvictionInterval),
-			slog.Int("eviction_batch_size", configs.Engine.EvictionBatchSize),
-		),
 	)
 
 	slog.Info("Starting Lyko Key-Value Store.")
 	slog.Info("Server starting...", "port", configs.Server.Port, "environment", configs.Logging.Environment, "log level", configs.Logging.Level)
 
-	bucketManager := core.NewBucketManager(configs)
+	bucketManager := bucket.NewBucketManager(configs)
 
 	storageService := service.NewStorageService(bucketManager, configs)
 	bucketService := service.NewBucketService(bucketManager)

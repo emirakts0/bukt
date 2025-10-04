@@ -18,6 +18,10 @@ type CreateBucketRequest struct {
 	ShardCount  int    `json:"shard_count,omitempty"`
 }
 
+type DeleteBucketRequest struct {
+	AuthToken string `json:"auth_token"`
+}
+
 func (r *CreateBucketRequest) Validate() error {
 	r.Sanitize()
 
@@ -79,4 +83,11 @@ func isValidBucketName(name string) bool {
 
 func isAlphaNumeric(b byte) bool {
 	return (b >= 'a' && b <= 'z') || (b >= '0' && b <= '9')
+}
+
+func (r *DeleteBucketRequest) Validate() error {
+	if r.AuthToken == "" {
+		return errors.New("auth token is required")
+	}
+	return nil
 }

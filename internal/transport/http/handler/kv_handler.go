@@ -25,10 +25,17 @@ func NewKVHandler(service service.IStorageService) *KVHandler {
 func (h *KVHandler) Create(w http.ResponseWriter, r *http.Request) {
 	crrid := middleware.CorrelationID(r.Context())
 	bucketName := r.PathValue("bucket")
+	authToken := r.Header.Get("X-Bucket-Token")
 
 	if bucketName == "" {
 		slog.Debug("Handler: Bucket name is required", "crr-id", crrid)
 		util.WriteBadRequest(w, "Bucket name is required")
+		return
+	}
+
+	if authToken == "" {
+		slog.Debug("Handler: Bucket auth token is required", "crr-id", crrid)
+		util.WriteUnauthorized(w, "Bucket auth token is required")
 		return
 	}
 
@@ -45,13 +52,13 @@ func (h *KVHandler) Create(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	_, err := h.service.Set(r.Context(), bucketName, req.Key, req.Value, req.TTL, req.SingleRead)
+	_, err := h.service.Set(r.Context(), bucketName, authToken, req.Key, req.Value, req.TTL, req.SingleRead)
 	if err != nil {
 		switch {
 		case errors.Is(err, errs.ErrInvalidTTL):
 			util.WriteBadRequest(w, "Invalid TTL")
-		case errors.Is(err, errs.ErrBucketNotFound):
-			util.WriteNotFound(w, "Bucket not found")
+		case errors.Is(err, errs.ErrUnauthorized):
+			util.WriteUnauthorized(w, "Invalid bucket auth token")
 		default:
 			slog.Error("Handler: Failed to set key-value in bucket", "crr-id", crrid, "bucket", bucketName, "error", err)
 			util.WriteInternalError(w)
@@ -66,6 +73,7 @@ func (h *KVHandler) Get(w http.ResponseWriter, r *http.Request) {
 	crrid := middleware.CorrelationID(r.Context())
 	bucketName := r.PathValue("bucket")
 	key := r.PathValue("key")
+	authToken := r.Header.Get("X-Bucket-Token")
 
 	if bucketName == "" {
 		slog.Debug("Handler: Bucket name is required", "crr-id", crrid)
@@ -79,15 +87,21 @@ func (h *KVHandler) Get(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	entry, err := h.service.Get(r.Context(), bucketName, key)
+	if authToken == "" {
+		slog.Debug("Handler: Bucket auth token is required", "crr-id", crrid)
+		util.WriteUnauthorized(w, "Bucket auth token is required")
+		return
+	}
+
+	entry, err := h.service.Get(r.Context(), bucketName, authToken, key)
 	if err != nil {
 		switch {
 		case errors.Is(err, errs.ErrKeyNotFound):
 			util.WriteNotFound(w, "Key not found")
 		case errors.Is(err, errs.ErrKeyExpired):
 			util.WriteNotFound(w, "Key expired")
-		case errors.Is(err, errs.ErrBucketNotFound):
-			util.WriteNotFound(w, "Bucket not found")
+		case errors.Is(err, errs.ErrUnauthorized):
+			util.WriteUnauthorized(w, "Invalid bucket auth token")
 		default:
 			slog.Error("Handler: Failed to get key from bucket", "crr-id", crrid, "bucket", bucketName, "key", key, "error", err)
 			util.WriteInternalError(w)
@@ -103,6 +117,7 @@ func (h *KVHandler) Delete(w http.ResponseWriter, r *http.Request) {
 	crrid := middleware.CorrelationID(r.Context())
 	bucketName := r.PathValue("bucket")
 	key := r.PathValue("key")
+	authToken := r.Header.Get("X-Bucket-Token")
 
 	if bucketName == "" {
 		slog.Debug("Handler: Bucket name is required", "crr-id", crrid)
@@ -116,11 +131,17 @@ func (h *KVHandler) Delete(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	err := h.service.Delete(r.Context(), bucketName, key)
+	if authToken == "" {
+		slog.Debug("Handler: Bucket auth token is required", "crr-id", crrid)
+		util.WriteUnauthorized(w, "Bucket auth token is required")
+		return
+	}
+
+	err := h.service.Delete(r.Context(), bucketName, authToken, key)
 	if err != nil {
 		switch {
-		case errors.Is(err, errs.ErrBucketNotFound):
-			util.WriteNotFound(w, "Bucket not found")
+		case errors.Is(err, errs.ErrUnauthorized):
+			util.WriteUnauthorized(w, "Invalid bucket auth token")
 		default:
 			slog.Error("Handler: Failed to delete key from bucket", "crr-id", crrid, "bucket", bucketName, "key", key, "error", err)
 			util.WriteInternalError(w)

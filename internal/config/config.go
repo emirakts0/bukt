@@ -4,37 +4,28 @@ import (
 	"os"
 	"strconv"
 	"strings"
-	"time"
 )
 
 const (
-	EnvAuthUsername           = "AUTH_USERNAME"
-	EnvAuthPassword           = "AUTH_PASSWORD"
-	EnvServerPort             = "SERVER_PORT"
-	EnvLoggingEnvironment     = "LOGGING_ENVIRONMENT"
-	EnvLoggingLevel           = "LOGGING_LEVEL"
-	EnvShardCount             = "SHARD_COUNT"
-	EnvCompressionType        = "COMPRESSION_TYPE"
-	EnvCompressionThreshold   = "COMPRESSION_THRESHOLD"
-	EnvEngineType             = "ENGINE_TYPE"
-	EnvEngineDataDir          = "ENGINE_DATA_DIR"
-	EnvEngineEvictionInterval = "ENGINE_EVICTION_INTERVAL"
-	EnvEngineEvictionBatch    = "ENGINE_EVICTION_BATCH_SIZE"
+	EnvAuthUsername         = "AUTH_USERNAME"
+	EnvAuthPassword         = "AUTH_PASSWORD"
+	EnvServerPort           = "SERVER_PORT"
+	EnvLoggingEnvironment   = "LOGGING_ENVIRONMENT"
+	EnvLoggingLevel         = "LOGGING_LEVEL"
+	EnvShardCount           = "SHARD_COUNT"
+	EnvCompressionType      = "COMPRESSION_TYPE"
+	EnvCompressionThreshold = "COMPRESSION_THRESHOLD"
 )
 
 const (
-	DefaultAuthUsername           = "emir"
-	DefaultAuthPassword           = "emir"
-	DefaultServerPort             = 8080
-	DefaultLoggingEnvironment     = "production"
-	DefaultLoggingLevel           = "info"
-	DefaultShardCount             = 4
-	DefaultCompressionType        = "none"
-	DefaultCompressionThreshold   = 0
-	DefaultEngineType             = "in-memory"
-	DefaultEngineDataDir          = "data"
-	DefaultEngineEvictionInterval = 1 * time.Minute
-	DefaultEngineEvictionBatch    = 100
+	DefaultAuthUsername         = "emir"
+	DefaultAuthPassword         = "emir"
+	DefaultServerPort           = 8080
+	DefaultLoggingEnvironment   = "production"
+	DefaultLoggingLevel         = "info"
+	DefaultShardCount           = 64
+	DefaultCompressionType      = "none"
+	DefaultCompressionThreshold = 0
 )
 
 type Configuration struct {
@@ -42,7 +33,6 @@ type Configuration struct {
 	Server  ServerConfig
 	Logging LoggingConfig
 	Store   StoreConfig
-	Engine  EngineConfig
 }
 
 type AuthConfig struct {
@@ -65,13 +55,6 @@ type StoreConfig struct {
 	CompressionThreshold int64
 }
 
-type EngineConfig struct {
-	Type              string
-	DataDir           string
-	EvictionInterval  time.Duration
-	EvictionBatchSize int
-}
-
 func NewConfig() *Configuration {
 	return &Configuration{
 		Auth: AuthConfig{
@@ -90,27 +73,12 @@ func NewConfig() *Configuration {
 			CompressionType:      getEnv(EnvCompressionType, DefaultCompressionType),
 			CompressionThreshold: getEnvAsInt64(EnvCompressionThreshold, DefaultCompressionThreshold),
 		},
-		Engine: EngineConfig{
-			Type:              getEnv(EnvEngineType, DefaultEngineType),
-			DataDir:           getEnv(EnvEngineDataDir, DefaultEngineDataDir),
-			EvictionInterval:  getEnvAsDuration(EnvEngineEvictionInterval, DefaultEngineEvictionInterval),
-			EvictionBatchSize: getEnvAsInt(EnvEngineEvictionBatch, DefaultEngineEvictionBatch),
-		},
 	}
 }
 
 func getEnv(key, defaultValue string) string {
 	if value, exists := os.LookupEnv(key); exists {
 		return value
-	}
-	return defaultValue
-}
-
-func getEnvAsDuration(key string, defaultValue time.Duration) time.Duration {
-	if value, exists := os.LookupEnv(key); exists {
-		if durationValue, err := time.ParseDuration(value); err == nil {
-			return durationValue
-		}
 	}
 	return defaultValue
 }
