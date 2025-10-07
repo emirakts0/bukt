@@ -29,8 +29,6 @@ func main() {
 		),
 		slog.Group("store",
 			slog.Int("shard_count", configs.Store.ShardCount),
-			slog.String("compression_type", configs.Store.CompressionType),
-			slog.Int64("compression_threshold", configs.Store.CompressionThreshold),
 		),
 	)
 

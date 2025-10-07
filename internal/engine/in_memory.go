@@ -194,22 +194,12 @@ func (s *COWIndexStore) Usage() int64 { return atomic.LoadInt64(&s.usedBytes) }
 
 func (s *COWIndexStore) Count() int64 { return atomic.LoadInt64(&s.keyCount) }
 
-func sizeOf(key string, e StorageEntry) int64 {
+func sizeOf(key string, e StorageEntry) int64 { // todo pointer geç buraya
 	var v int64
-	if e.Compressed {
-		if e.CompressedSize > 0 {
-			v = e.CompressedSize
-		} else if e.OriginalSize > 0 {
-			v = e.OriginalSize
-		} else {
-			v = int64(len(e.Value))
-		}
+	if e.OriginalSize > 0 {
+		v = e.OriginalSize
 	} else {
-		if e.OriginalSize > 0 {
-			v = e.OriginalSize
-		} else {
-			v = int64(len(e.Value))
-		}
+		v = int64(len(e.Value))
 	}
 	return int64(len(key)) + v
 }

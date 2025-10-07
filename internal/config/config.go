@@ -7,25 +7,21 @@ import (
 )
 
 const (
-	EnvAuthUsername         = "AUTH_USERNAME"
-	EnvAuthPassword         = "AUTH_PASSWORD"
-	EnvServerPort           = "SERVER_PORT"
-	EnvLoggingEnvironment   = "LOGGING_ENVIRONMENT"
-	EnvLoggingLevel         = "LOGGING_LEVEL"
-	EnvShardCount           = "SHARD_COUNT"
-	EnvCompressionType      = "COMPRESSION_TYPE"
-	EnvCompressionThreshold = "COMPRESSION_THRESHOLD"
+	EnvAuthUsername       = "AUTH_USERNAME"
+	EnvAuthPassword       = "AUTH_PASSWORD"
+	EnvServerPort         = "SERVER_PORT"
+	EnvLoggingEnvironment = "LOGGING_ENVIRONMENT"
+	EnvLoggingLevel       = "LOGGING_LEVEL"
+	EnvShardCount         = "SHARD_COUNT"
 )
 
 const (
-	DefaultAuthUsername         = "emir"
-	DefaultAuthPassword         = "emir"
-	DefaultServerPort           = 8080
-	DefaultLoggingEnvironment   = "production"
-	DefaultLoggingLevel         = "info"
-	DefaultShardCount           = 64
-	DefaultCompressionType      = "none"
-	DefaultCompressionThreshold = 0
+	DefaultAuthUsername       = "emir"
+	DefaultAuthPassword       = "emir"
+	DefaultServerPort         = 8080
+	DefaultLoggingEnvironment = "production"
+	DefaultLoggingLevel       = "info"
+	DefaultShardCount         = 64
 )
 
 type Configuration struct {
@@ -50,9 +46,7 @@ type LoggingConfig struct {
 }
 
 type StoreConfig struct {
-	ShardCount           int
-	CompressionType      string
-	CompressionThreshold int64
+	ShardCount int
 }
 
 func NewConfig() *Configuration {
@@ -69,9 +63,7 @@ func NewConfig() *Configuration {
 			Level:       getEnv(EnvLoggingLevel, DefaultLoggingLevel),
 		},
 		Store: StoreConfig{
-			ShardCount:           getEnvAsInt(EnvShardCount, DefaultShardCount),
-			CompressionType:      getEnv(EnvCompressionType, DefaultCompressionType),
-			CompressionThreshold: getEnvAsInt64(EnvCompressionThreshold, DefaultCompressionThreshold),
+			ShardCount: getEnvAsInt(EnvShardCount, DefaultShardCount),
 		},
 	}
 }

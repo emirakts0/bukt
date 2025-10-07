@@ -8,7 +8,6 @@ import (
 	"key-value-store/internal/engine"
 	"key-value-store/internal/errs"
 	"key-value-store/internal/transport/http/middleware"
-	"key-value-store/internal/util"
 	"log/slog"
 	"time"
 )
@@ -72,22 +71,9 @@ func (s *storageService) Set(ctx context.Context, bucketName, authTokenHex, key,
 		OriginalSize: originalSize,
 	}
 
-	if s.cfg.Store.CompressionType != "none" && originalSize > s.cfg.Store.CompressionThreshold {
-		compressedValue, err := util.CompressBytes(valueBytes, util.CompressionType(s.cfg.Store.CompressionType))
-		if err != nil {
-			slog.Error("Service: Failed to compress value", "crr-id", crrid, "bucket", bucketName, "key", key, "error", err)
-			return engine.StorageEntry{}, errs.ErrCompression
-		}
-		entry.Value = compressedValue
-		entry.Compressed = true
-		entry.CompressedSize = int64(len(compressedValue))
-		slog.Debug("Service: Value compressed", "crr-id", crrid, "bucket", bucketName, "key", key, "original_size", entry.OriginalSize, "compressed_size", entry.CompressedSize)
-	}
-
 	bucketStore.Set(key, entry)
 
-	slog.Info("Service: Saved key-value pair in bucket", "crr-id", crrid, "bucket", bucketName, "key", key, "ttl", entry.TTL, "single_read", singleRead,
-		"compressed", entry.Compressed, "original_size", entry.OriginalSize, "compressed_size", entry.CompressedSize)
+	slog.Info("Service: Saved key-value pair in bucket", "crr-id", crrid, "bucket", bucketName, "key", key, "ttl", entry.TTL, "single_read", singleRead, "original_size", entry.OriginalSize)
 	return entry, nil
 }
 
@@ -111,18 +97,6 @@ func (s *storageService) Get(ctx context.Context, bucketName, authTokenHex, key 
 	if !exists {
 		slog.Debug("Service: Key not found in bucket engine", "crr-id", crrid, "bucket", bucketName, "key", key)
 		return engine.StorageEntry{}, errs.ErrKeyNotFound
-	}
-
-	if entry.Compressed {
-		decompressed, err := util.DecompressBytes(entry.Value, util.CompressionType(s.cfg.Store.CompressionType))
-		if err != nil {
-			slog.Error("Service: Failed to decompress value", "crr-id", crrid, "bucket", bucketName, "key", key, "error", err)
-			return engine.StorageEntry{}, errs.ErrCompression
-		}
-		entry.Value = decompressed
-		entry.Compressed = false
-		entry.CompressedSize = 0
-		slog.Debug("Service: Value decompressed", "crr-id", crrid, "bucket", bucketName, "key", key)
 	}
 
 	if entry.SingleRead {
