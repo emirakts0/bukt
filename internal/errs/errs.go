@@ -5,10 +5,9 @@ import "errors"
 var (
 	ErrKeyNotFound      = errors.New("key not found")
 	ErrInvalidTTL       = errors.New("invalid TTL")
-	ErrKeyAlreadyExists = errors.New("key already exists")
+	ErrKeyAlreadyExists = errors.New("key already exists") // TODO
 	ErrKeyExpired       = errors.New("key expired")
 	ErrMemoryLimit      = errors.New("memory limit exceeded")
-	ErrCompression      = errors.New("compression error")
 	ErrDeletion         = errors.New("deletion error")
 )
 

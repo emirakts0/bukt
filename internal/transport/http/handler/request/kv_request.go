@@ -14,7 +14,7 @@ const (
 
 type CreateKVRequest struct {
 	Key        string `json:"key"`
-	Value      string `json:"value"`
+	Value      []byte `json:"value"`
 	TTL        int64  `json:"ttl"` // in seconds
 	SingleRead bool   `json:"single_read"`
 }
@@ -31,7 +31,7 @@ func (r *CreateKVRequest) Validate() error {
 	if len(r.Key) > MaxKeyLength {
 		return fmt.Errorf("key must be at most %d characters", MaxKeyLength)
 	}
-	if r.Value == "" {
+	if len(r.Value) == 0 {
 		return errors.New("value is required")
 	}
 	if r.TTL < MinTTL {
@@ -44,5 +44,4 @@ func (r *CreateKVRequest) Validate() error {
 // Sanitize performs any necessary sanitization on the request
 func (r *CreateKVRequest) Sanitize() {
 	r.Key = strings.TrimSpace(r.Key)
-	r.Value = strings.TrimSpace(r.Value)
 }

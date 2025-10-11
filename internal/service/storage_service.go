@@ -2,20 +2,19 @@ package service
 
 import (
 	"context"
-	"encoding/hex"
 	"key-value-store/internal/bucket"
 	"key-value-store/internal/config"
 	"key-value-store/internal/engine"
 	"key-value-store/internal/errs"
-	"key-value-store/internal/transport/http/middleware"
+	"key-value-store/internal/util"
 	"log/slog"
 	"time"
 )
 
 type IStorageService interface {
-	Set(ctx context.Context, bucketName, authTokenHex, key, value string, ttl int64, singleRead bool) (engine.StorageEntry, error)
-	Get(ctx context.Context, bucketName, authTokenHex, key string) (engine.StorageEntry, error)
-	Delete(ctx context.Context, bucketName, authTokenHex, key string) error
+	Set(ctx context.Context, bucketName, key string, value []byte, ttl int64, singleRead bool) (engine.StorageEntry, error)
+	Get(ctx context.Context, bucketName, key string) (engine.StorageEntry, error)
+	Delete(ctx context.Context, bucketName, key string) error
 }
 
 type storageService struct {
@@ -31,8 +30,8 @@ func NewStorageService(bucketManager bucket.BucketManager, cfg *config.Configura
 	return s
 }
 
-func (s *storageService) Set(ctx context.Context, bucketName, authTokenHex, key, value string, ttl int64, singleRead bool) (engine.StorageEntry, error) {
-	crrid := middleware.CorrelationID(ctx)
+func (s *storageService) Set(ctx context.Context, bucketName, key string, value []byte, ttl int64, singleRead bool) (engine.StorageEntry, error) {
+	crrid := util.GetCorrelationID(ctx)
 	slog.Debug("Service: Attempting to set key-value pair in bucket", "crr-id", crrid, "bucket", bucketName, "key", key, "ttl", ttl, "single_read", singleRead)
 
 	if ttl < 0 {
@@ -40,16 +39,10 @@ func (s *storageService) Set(ctx context.Context, bucketName, authTokenHex, key,
 		return engine.StorageEntry{}, errs.ErrInvalidTTL
 	}
 
-	tokenBytes, err := hex.DecodeString(authTokenHex)
-	if err != nil || len(tokenBytes) != 16 {
-		slog.Error("Service: Invalid token format", "crr-id", crrid, "bucket", bucketName)
-		return engine.StorageEntry{}, errs.ErrUnauthorized
-	}
-
-	bucketStore, ok := s.bucketManager.AuthenticateAndGetStore(bucketName, tokenBytes)
+	bucketStore, ok := s.bucketManager.GetStore(bucketName)
 	if !ok {
-		slog.Error("Service: Failed to authenticate bucket", "crr-id", crrid, "bucket", bucketName)
-		return engine.StorageEntry{}, errs.ErrUnauthorized
+		slog.Error("Service: Bucket not found", "crr-id", crrid, "bucket", bucketName)
+		return engine.StorageEntry{}, errs.ErrBucketNotFound
 	}
 
 	now := time.Now()
@@ -58,12 +51,11 @@ func (s *storageService) Set(ctx context.Context, bucketName, authTokenHex, key,
 		exp = now.Add(time.Duration(ttl) * time.Second)
 	}
 
-	valueBytes := []byte(value)
-	originalSize := int64(len(valueBytes))
+	originalSize := int64(len(value))
 
 	entry := engine.StorageEntry{
 		Key:          key,
-		Value:        valueBytes,
+		Value:        value,
 		TTL:          ttl,
 		CreatedAt:    now,
 		ExpiresAt:    exp,
@@ -77,20 +69,14 @@ func (s *storageService) Set(ctx context.Context, bucketName, authTokenHex, key,
 	return entry, nil
 }
 
-func (s *storageService) Get(ctx context.Context, bucketName, authTokenHex, key string) (engine.StorageEntry, error) {
-	crrid := middleware.CorrelationID(ctx)
+func (s *storageService) Get(ctx context.Context, bucketName, key string) (engine.StorageEntry, error) {
+	crrid := util.GetCorrelationID(ctx)
 	slog.Debug("Service: Attempting to get value from bucket", "crr-id", crrid, "bucket", bucketName, "key", key)
 
-	tokenBytes, err := hex.DecodeString(authTokenHex)
-	if err != nil || len(tokenBytes) != 16 {
-		slog.Error("Service: Invalid token format", "crr-id", crrid, "bucket", bucketName)
-		return engine.StorageEntry{}, errs.ErrUnauthorized
-	}
-
-	bucketStore, ok := s.bucketManager.AuthenticateAndGetStore(bucketName, tokenBytes)
+	bucketStore, ok := s.bucketManager.GetStore(bucketName)
 	if !ok {
-		slog.Error("Service: Failed to authenticate bucket", "crr-id", crrid, "bucket", bucketName)
-		return engine.StorageEntry{}, errs.ErrUnauthorized
+		slog.Error("Service: Bucket not found", "crr-id", crrid, "bucket", bucketName)
+		return engine.StorageEntry{}, errs.ErrBucketNotFound
 	}
 
 	entry, exists := bucketStore.Get(key)
@@ -107,20 +93,14 @@ func (s *storageService) Get(ctx context.Context, bucketName, authTokenHex, key 
 	return entry, nil
 }
 
-func (s *storageService) Delete(ctx context.Context, bucketName, authTokenHex, key string) error {
-	crrid := middleware.CorrelationID(ctx)
+func (s *storageService) Delete(ctx context.Context, bucketName, key string) error {
+	crrid := util.GetCorrelationID(ctx)
 	slog.Debug("Service: Attempting to delete key from bucket", "crr-id", crrid, "bucket", bucketName, "key", key)
 
-	tokenBytes, err := hex.DecodeString(authTokenHex)
-	if err != nil || len(tokenBytes) != 16 {
-		slog.Error("Service: Invalid token format", "crr-id", crrid, "bucket", bucketName)
-		return errs.ErrUnauthorized
-	}
-
-	bucketStore, ok := s.bucketManager.AuthenticateAndGetStore(bucketName, tokenBytes)
+	bucketStore, ok := s.bucketManager.GetStore(bucketName)
 	if !ok {
-		slog.Error("Service: Failed to authenticate bucket", "crr-id", crrid, "bucket", bucketName)
-		return errs.ErrUnauthorized
+		slog.Error("Service: Bucket not found", "crr-id", crrid, "bucket", bucketName)
+		return errs.ErrBucketNotFound
 	}
 
 	bucketStore.Delete(key)

@@ -2,6 +2,7 @@ package response
 
 import (
 	"key-value-store/internal/engine"
+	"key-value-store/internal/util"
 	"time"
 )
 
@@ -26,7 +27,8 @@ func NewKVResponse(key, value string, createdAt, expiresAt time.Time) KVResponse
 }
 
 func NewKVResponseFromEntry(entry engine.StorageEntry) KVResponse {
-	valueStr := string(entry.Value)
+	// Zero-copy conversion (safe here since we only serialize and discard)
+	valueStr := util.BytesToString(entry.Value)
 
 	return KVResponse{
 		Key:       entry.Key,

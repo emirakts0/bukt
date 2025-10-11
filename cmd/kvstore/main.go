@@ -1,6 +1,7 @@
 package main
 
 import (
+	"key-value-store/internal/auth"
 	"key-value-store/internal/bucket"
 	"key-value-store/internal/config"
 	"key-value-store/internal/logger"
@@ -24,9 +25,6 @@ func main() {
 		slog.Group("server",
 			slog.Int("port", configs.Server.Port),
 		),
-		slog.Group("auth",
-			slog.String("username", configs.Auth.Username),
-		),
 		slog.Group("store",
 			slog.Int("shard_count", configs.Store.ShardCount),
 		),
@@ -35,15 +33,23 @@ func main() {
 	slog.Info("Starting Lyko Key-Value Store.")
 	slog.Info("Server starting...", "port", configs.Server.Port, "environment", configs.Logging.Environment, "log level", configs.Logging.Level)
 
+	// Initialize singleton auth manager with secret key
+	auth.Initialize(configs.Auth.TokenSecret)
+	slog.Info("Auth manager initialized")
+
+	// Create bucket manager
 	bucketManager := bucket.NewBucketManager(configs)
 
+	// Create services
 	storageService := service.NewStorageService(bucketManager, configs)
 	bucketService := service.NewBucketService(bucketManager)
 
+	// Create handlers
 	kvHandler := handler.NewKVHandler(storageService)
 	bucketHandler := handler.NewBucketHandler(bucketService)
 
-	router := http.NewRouter(kvHandler, bucketHandler, configs.Auth)
+	// Create router
+	router := http.NewRouter(kvHandler, bucketHandler)
 
 	addr := ":" + strconv.Itoa(configs.Server.Port)
 	slog.Info("Server started and listening", "address", addr)

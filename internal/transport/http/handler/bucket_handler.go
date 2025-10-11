@@ -6,7 +6,6 @@ import (
 	"key-value-store/internal/service"
 	"key-value-store/internal/transport/http/handler/request"
 	"key-value-store/internal/transport/http/handler/response"
-	"key-value-store/internal/transport/http/middleware"
 	"key-value-store/internal/util"
 	"log/slog"
 	"net/http"
@@ -23,7 +22,7 @@ func NewBucketHandler(service service.IBucketService) *BucketHandler {
 }
 
 func (h *BucketHandler) CreateBucket(w http.ResponseWriter, r *http.Request) {
-	crrid := middleware.CorrelationID(r.Context())
+	crrid := util.GetCorrelationID(r.Context())
 
 	var req request.CreateBucketRequest
 	if err := util.ReadJSONBody(r, &req, w); err != nil {
@@ -57,7 +56,7 @@ func (h *BucketHandler) CreateBucket(w http.ResponseWriter, r *http.Request) {
 }
 
 func (h *BucketHandler) GetBucket(w http.ResponseWriter, r *http.Request) {
-	crrid := middleware.CorrelationID(r.Context())
+	crrid := util.GetCorrelationID(r.Context())
 	bucketName := r.PathValue("bucket")
 
 	if bucketName == "" {
@@ -83,7 +82,7 @@ func (h *BucketHandler) GetBucket(w http.ResponseWriter, r *http.Request) {
 }
 
 func (h *BucketHandler) DeleteBucket(w http.ResponseWriter, r *http.Request) {
-	crrid := middleware.CorrelationID(r.Context())
+	crrid := util.GetCorrelationID(r.Context())
 	bucketName := r.PathValue("bucket")
 
 	if bucketName == "" {
@@ -125,7 +124,7 @@ func (h *BucketHandler) DeleteBucket(w http.ResponseWriter, r *http.Request) {
 }
 
 func (h *BucketHandler) ListBuckets(w http.ResponseWriter, r *http.Request) {
-	crrid := middleware.CorrelationID(r.Context())
+	crrid := util.GetCorrelationID(r.Context())
 
 	buckets, err := h.service.ListBuckets(r.Context())
 	if err != nil {

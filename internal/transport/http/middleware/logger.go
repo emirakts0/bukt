@@ -1,6 +1,7 @@
 package middleware
 
 import (
+	"key-value-store/internal/util"
 	"log/slog"
 	"net/http"
 	"time"
@@ -14,7 +15,7 @@ func Logger(next http.Handler) http.Handler {
 		method := r.Method
 		clientIP := r.RemoteAddr
 		userAgent := r.UserAgent()
-		correlationID := CorrelationID(r.Context())
+		correlationID := util.GetCorrelationID(r.Context())
 
 		slog.Info("HTTP/REQUEST",
 			slog.String("crr-id", correlationID),

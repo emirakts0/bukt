@@ -1,52 +1,44 @@
 package middleware
 
 import (
-	"encoding/base64"
-	"key-value-store/internal/config"
+	"key-value-store/internal/auth"
 	"key-value-store/internal/util"
+	"log/slog"
 	"net/http"
-	"strings"
 )
 
-type AuthMiddleware struct {
-	cfg config.AuthConfig
-}
-
-func NewAuthMiddleware(cfg config.AuthConfig) *AuthMiddleware {
-	return &AuthMiddleware{cfg: cfg}
-}
-
-func (am *AuthMiddleware) Handler(next http.Handler) http.Handler {
+// Auth validates bucket tokens and adds bucket info to context
+func Auth(next http.Handler) http.Handler {
 	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		authHeader := r.Header.Get("Authorization")
-		if authHeader == "" {
-			util.WriteUnauthorized(w, "Authorization header is required")
+		crrid := util.GetCorrelationID(r.Context())
+
+		// Get bucket name from path
+		bucketName := r.PathValue("bucket")
+		if bucketName == "" {
+			slog.Debug("Middleware: Bucket name not in path", "crr-id", crrid)
+			util.WriteBadRequest(w, "Bucket name is required")
 			return
 		}
 
-		parts := strings.Split(authHeader, " ")
-		if len(parts) != 2 || parts[0] != "Basic" {
-			util.WriteUnauthorized(w, "Invalid authorization header format")
+		// Get token from header
+		tokenStr := r.Header.Get("X-Bucket-Token")
+		if tokenStr == "" {
+			slog.Debug("Middleware: Bucket token not provided", "crr-id", crrid)
+			util.WriteUnauthorized(w, "X-Bucket-Token header is required")
 			return
 		}
 
-		decoded, err := base64.StdEncoding.DecodeString(parts[1])
-		if err != nil {
-			util.WriteUnauthorized(w, "Invalid credentials format")
+		// Validate token with bucket name
+		if !auth.Manager().ValidateToken(tokenStr, bucketName) {
+			slog.Debug("Middleware: Invalid bucket token", "crr-id", crrid, "bucket", bucketName)
+			util.WriteUnauthorized(w, "Invalid bucket token")
 			return
 		}
 
-		credentials := strings.Split(string(decoded), ":")
-		if len(credentials) != 2 {
-			util.WriteUnauthorized(w, "Invalid credentials format")
-			return
-		}
+		// Add bucket name to context
+		ctx := util.SetBucketName(r.Context(), bucketName)
 
-		if credentials[0] != am.cfg.Username || credentials[1] != am.cfg.Password {
-			util.WriteUnauthorized(w, "Invalid credentials")
-			return
-		}
-
-		next.ServeHTTP(w, r)
+		slog.Debug("Middleware: Bucket authenticated", "crr-id", crrid, "bucket", bucketName)
+		next.ServeHTTP(w, r.WithContext(ctx))
 	})
 }

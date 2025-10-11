@@ -1,7 +1,6 @@
 package http
 
 import (
-	"key-value-store/internal/config"
 	"key-value-store/internal/transport/http/handler"
 	"key-value-store/internal/transport/http/middleware"
 	"net/http"
@@ -19,27 +18,33 @@ type Router struct {
 	mux    *http.ServeMux
 }
 
-func NewRouter(kvHandler *handler.KVHandler, bucketHandler *handler.BucketHandler, authCfg config.AuthConfig) *Router {
+func NewRouter(kvHandler *handler.KVHandler, bucketHandler *handler.BucketHandler) *Router {
 	mux := http.NewServeMux()
 
-	commonMiddleware := []middleware.Middleware{
+	mw := []middleware.Middleware{
 		middleware.Recovery,
 		middleware.Correlation,
 		middleware.Logger,
-		middleware.NewAuthMiddleware(authCfg).Handler,
+		middleware.Auth,
+	}
+
+	noAuthMw := []middleware.Middleware{
+		middleware.Recovery,
+		middleware.Correlation,
+		middleware.Logger,
 	}
 
 	// Bucket management endpoints
-	mux.HandleFunc("POST /api/buckets", middleware.ApplyMiddleware(bucketHandler.CreateBucket, commonMiddleware...))
-	mux.HandleFunc("GET /api/buckets", middleware.ApplyMiddleware(bucketHandler.ListBuckets, commonMiddleware...))
-	mux.HandleFunc("GET /api/buckets/{bucket}", middleware.ApplyMiddleware(bucketHandler.GetBucket, commonMiddleware...))
-	mux.HandleFunc("DELETE /api/buckets/{bucket}", middleware.ApplyMiddleware(bucketHandler.DeleteBucket, commonMiddleware...))
+	mux.HandleFunc("POST /api/buckets", middleware.ApplyMiddleware(bucketHandler.CreateBucket, noAuthMw...))
+	mux.HandleFunc("GET /api/buckets", middleware.ApplyMiddleware(bucketHandler.ListBuckets, mw...))
+	mux.HandleFunc("GET /api/buckets/{bucket}", middleware.ApplyMiddleware(bucketHandler.GetBucket, mw...))
+	mux.HandleFunc("DELETE /api/buckets/{bucket}", middleware.ApplyMiddleware(bucketHandler.DeleteBucket, mw...))
 
 	// todo: add get random.
 	// Key-value endpoints
-	mux.HandleFunc("POST /api/buckets/{bucket}/kv", middleware.ApplyMiddleware(kvHandler.Create, commonMiddleware...))
-	mux.HandleFunc("GET /api/buckets/{bucket}/kv/{key}", middleware.ApplyMiddleware(kvHandler.Get, commonMiddleware...))
-	mux.HandleFunc("DELETE /api/buckets/{bucket}/kv/{key}", middleware.ApplyMiddleware(kvHandler.Delete, commonMiddleware...))
+	mux.HandleFunc("POST /api/buckets/{bucket}/kv", middleware.ApplyMiddleware(kvHandler.Create, mw...))
+	mux.HandleFunc("GET /api/buckets/{bucket}/kv/{key}", middleware.ApplyMiddleware(kvHandler.Get, mw...))
+	mux.HandleFunc("DELETE /api/buckets/{bucket}/kv/{key}", middleware.ApplyMiddleware(kvHandler.Delete, mw...))
 
 	return &Router{
 		mux: mux,

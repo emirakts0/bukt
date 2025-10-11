@@ -1,8 +1,7 @@
 package bucket
 
 import (
-	"crypto/subtle"
-	"encoding/hex"
+	"key-value-store/internal/auth"
 	"key-value-store/internal/config"
 	"key-value-store/internal/engine"
 	"key-value-store/internal/errs"
@@ -22,7 +21,6 @@ type BucketMetadata struct {
 	ShardCount  int
 	KeyCount    int64
 	MemoryUsage int64
-	authToken   [16]byte
 	store       *engine.ShardContainer
 }
 
@@ -33,10 +31,10 @@ type BucketIndex struct {
 type BucketManager interface {
 	CreateBucket(name, description string, shardCount int) (string, error)
 	GetBucket(name string) (*BucketMetadata, bool)
-	DeleteBucket(name string, token []byte) error
+	DeleteBucket(name, token string) error
 	ListBuckets() []*BucketMetadata
 	BucketExists(name string) bool
-	AuthenticateAndGetStore(name string, token []byte) (*engine.ShardContainer, bool)
+	GetStore(name string) (*engine.ShardContainer, bool)
 	Shutdown()
 }
 
@@ -47,7 +45,9 @@ type bucketManager struct {
 }
 
 func NewBucketManager(cfg *config.Configuration) BucketManager {
-	bm := &bucketManager{cfg: cfg}
+	bm := &bucketManager{
+		cfg: cfg,
+	}
 	idx := &BucketIndex{buckets: make(map[string]*BucketMetadata)}
 	bm.ptr.Store(idx)
 
@@ -86,21 +86,14 @@ func (bm *bucketManager) GetBucket(name string) (*BucketMetadata, bool) {
 	return meta, true
 }
 
-func (bm *bucketManager) AuthenticateAndGetStore(name string, token []byte) (*engine.ShardContainer, bool) {
-	if len(token) != 16 {
-		return nil, false
-	}
-
+// GetStore retrieves the storage engine for a bucket
+// Auth is expected to be handled by middleware before calling this
+func (bm *bucketManager) GetStore(name string) (*engine.ShardContainer, bool) {
 	idx := bm.snapshot()
 	b, ok := idx.buckets[name]
 	if !ok {
 		return nil, false
 	}
-
-	if subtle.ConstantTimeCompare(b.authToken[:], token) != 1 {
-		return nil, false
-	}
-
 	return b.store, true
 }
 
@@ -112,8 +105,6 @@ func (bm *bucketManager) CreateBucket(name, description string, shardCount int) 
 	if shardCount <= 0 {
 		shardCount = bm.cfg.Store.ShardCount
 	}
-
-	tokenBytes := generateAuthToken()
 
 	bm.writeMu.Lock()
 	defer bm.writeMu.Unlock()
@@ -139,24 +130,26 @@ func (bm *bucketManager) CreateBucket(name, description string, shardCount int) 
 		Description: description,
 		CreatedAt:   time.Now(),
 		ShardCount:  shardCount,
-		authToken:   tokenBytes,
 		store:       shardContainer,
 	}
 
 	newIdx.buckets[name] = meta
 	bm.ptr.Store(newIdx)
 
-	tokenStr := hex.EncodeToString(tokenBytes[:])
+	// Generate token with no expiration (0 = never expires)
+	token := auth.Manager().GenerateToken(name, 0)
+
 	slog.Info("BucketManager: Created bucket", "name", name, "id", meta.ID, "shard_count", shardCount)
-	return tokenStr, nil
+	return token, nil
 }
 
-func (bm *bucketManager) DeleteBucket(name string, token []byte) error {
+func (bm *bucketManager) DeleteBucket(name, token string) error {
 	if name == "default" {
 		return errs.ErrCannotDeleteDefault
 	}
 
-	if len(token) != 16 {
+	// Validate token using singleton auth manager
+	if !auth.Manager().ValidateToken(token, name) {
 		return errs.ErrUnauthorized
 	}
 
@@ -167,10 +160,6 @@ func (bm *bucketManager) DeleteBucket(name string, token []byte) error {
 	b, exists := old.buckets[name]
 	if !exists {
 		return errs.ErrBucketNotFound
-	}
-
-	if subtle.ConstantTimeCompare(b.authToken[:], token) != 1 {
-		return errs.ErrUnauthorized
 	}
 
 	newIdx := &BucketIndex{
@@ -236,11 +225,6 @@ func (bm *bucketManager) Shutdown() {
 			}
 		}
 	}
-}
-
-func generateAuthToken() [16]byte {
-	id, _ := uuid.NewV7()
-	return id
 }
 
 func generateBucketID() string {

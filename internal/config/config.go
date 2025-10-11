@@ -1,14 +1,15 @@
 package config
 
 import (
+	"crypto/rand"
+	"log/slog"
 	"os"
 	"strconv"
 	"strings"
 )
 
 const (
-	EnvAuthUsername       = "AUTH_USERNAME"
-	EnvAuthPassword       = "AUTH_PASSWORD"
+	EnvTokenSecret        = "TOKEN_SECRET"
 	EnvServerPort         = "SERVER_PORT"
 	EnvLoggingEnvironment = "LOGGING_ENVIRONMENT"
 	EnvLoggingLevel       = "LOGGING_LEVEL"
@@ -16,8 +17,7 @@ const (
 )
 
 const (
-	DefaultAuthUsername       = "emir"
-	DefaultAuthPassword       = "emir"
+	DefaultTokenSecret        = "" // Will be generated at startup if not provided
 	DefaultServerPort         = 8080
 	DefaultLoggingEnvironment = "production"
 	DefaultLoggingLevel       = "info"
@@ -32,8 +32,7 @@ type Configuration struct {
 }
 
 type AuthConfig struct {
-	Username string
-	Password string
+	TokenSecret []byte
 }
 
 type ServerConfig struct {
@@ -50,10 +49,19 @@ type StoreConfig struct {
 }
 
 func NewConfig() *Configuration {
+	tokenSecret := getEnv(EnvTokenSecret, DefaultTokenSecret)
+	var tokenSecretBytes []byte
+
+	if tokenSecret == "" {
+		// Generate a random 32-byte secret at startup
+		tokenSecretBytes = generateRandomSecret()
+	} else {
+		tokenSecretBytes = []byte(tokenSecret)
+	}
+
 	return &Configuration{
 		Auth: AuthConfig{
-			Username: getEnv(EnvAuthUsername, DefaultAuthUsername),
-			Password: getEnv(EnvAuthPassword, DefaultAuthPassword),
+			TokenSecret: tokenSecretBytes,
 		},
 		Server: ServerConfig{
 			Port: getEnvAsInt(EnvServerPort, DefaultServerPort),
@@ -93,4 +101,17 @@ func getEnvAsInt64(key string, defaultValue int64) int64 {
 		}
 	}
 	return defaultValue
+}
+
+// generateRandomSecret creates a cryptographically secure random 32-byte secret
+func generateRandomSecret() []byte {
+	secret := make([]byte, 32)
+	_, err := rand.Read(secret)
+	if err != nil {
+		slog.Error("Failed to generate random secret, using fallback", "error", err)
+		// Fallback to a deterministic secret (not ideal but better than crashing)
+		return []byte("fallback-secret-key-not-secure-please-set-TOKEN_SECRET")
+	}
+	slog.Info("Generated random token secret for this session")
+	return secret
 }

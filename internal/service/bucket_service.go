@@ -2,10 +2,9 @@ package service
 
 import (
 	"context"
-	"encoding/hex"
 	"key-value-store/internal/bucket"
 	"key-value-store/internal/errs"
-	"key-value-store/internal/transport/http/middleware"
+	"key-value-store/internal/util"
 	"log/slog"
 )
 
@@ -17,7 +16,7 @@ type CreateBucketResult struct {
 type IBucketService interface {
 	CreateBucket(ctx context.Context, name, description string, shardCount int) (*CreateBucketResult, error)
 	GetBucket(ctx context.Context, name string) (*bucket.BucketMetadata, error)
-	DeleteBucket(ctx context.Context, name, tokenHex string) error
+	DeleteBucket(ctx context.Context, name, token string) error
 	ListBuckets(ctx context.Context) ([]*bucket.BucketMetadata, error)
 }
 
@@ -32,7 +31,7 @@ func NewBucketService(bucketManager bucket.BucketManager) IBucketService {
 }
 
 func (s *bucketService) CreateBucket(ctx context.Context, name, description string, shardCount int) (*CreateBucketResult, error) {
-	crrid := middleware.CorrelationID(ctx)
+	crrid := util.GetCorrelationID(ctx)
 	slog.Debug("BucketService: Creating bucket", "crr-id", crrid, "name", name, "shard_count", shardCount)
 
 	tokenHex, err := s.bucketManager.CreateBucket(name, description, shardCount)
@@ -55,7 +54,7 @@ func (s *bucketService) CreateBucket(ctx context.Context, name, description stri
 }
 
 func (s *bucketService) GetBucket(ctx context.Context, name string) (*bucket.BucketMetadata, error) {
-	crrid := middleware.CorrelationID(ctx)
+	crrid := util.GetCorrelationID(ctx)
 	slog.Debug("BucketService: Getting bucket", "crr-id", crrid, "name", name)
 
 	meta, ok := s.bucketManager.GetBucket(name)
@@ -67,17 +66,11 @@ func (s *bucketService) GetBucket(ctx context.Context, name string) (*bucket.Buc
 	return meta, nil
 }
 
-func (s *bucketService) DeleteBucket(ctx context.Context, name, tokenHex string) error {
-	crrid := middleware.CorrelationID(ctx)
+func (s *bucketService) DeleteBucket(ctx context.Context, name, token string) error {
+	crrid := util.GetCorrelationID(ctx)
 	slog.Debug("BucketService: Deleting bucket", "crr-id", crrid, "name", name)
 
-	tokenBytes, err := hex.DecodeString(tokenHex)
-	if err != nil || len(tokenBytes) != 16 {
-		slog.Debug("BucketService: Invalid token format", "crr-id", crrid, "name", name)
-		return errs.ErrUnauthorized
-	}
-
-	err = s.bucketManager.DeleteBucket(name, tokenBytes)
+	err := s.bucketManager.DeleteBucket(name, token)
 	if err != nil {
 		slog.Error("BucketService: Failed to delete bucket", "crr-id", crrid, "name", name, "error", err)
 		return err
@@ -88,7 +81,7 @@ func (s *bucketService) DeleteBucket(ctx context.Context, name, tokenHex string)
 }
 
 func (s *bucketService) ListBuckets(ctx context.Context) ([]*bucket.BucketMetadata, error) {
-	crrid := middleware.CorrelationID(ctx)
+	crrid := util.GetCorrelationID(ctx)
 	slog.Debug("BucketService: Listing buckets", "crr-id", crrid)
 
 	buckets := s.bucketManager.ListBuckets()

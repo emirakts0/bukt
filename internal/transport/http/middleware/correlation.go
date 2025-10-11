@@ -1,14 +1,14 @@
 package middleware
 
 import (
-	"context"
-	"github.com/google/uuid"
+	"key-value-store/internal/util"
 	"net/http"
+
+	"github.com/google/uuid"
 )
 
 const (
 	CorrelationIDHeader = "X-Correlation-ID"
-	correlationIDKey    = "correlation_id"
 )
 
 func Correlation(next http.Handler) http.Handler {
@@ -20,17 +20,10 @@ func Correlation(next http.Handler) http.Handler {
 			correlationID = uuidV7.String()
 		}
 
-		ctx := context.WithValue(r.Context(), correlationIDKey, correlationID)
+		ctx := util.SetCorrelationID(r.Context(), correlationID)
 
 		w.Header().Set(CorrelationIDHeader, correlationID)
 
 		next.ServeHTTP(w, r.WithContext(ctx))
 	})
-}
-
-func CorrelationID(ctx context.Context) string {
-	if correlationID, ok := ctx.Value(correlationIDKey).(string); ok {
-		return correlationID
-	}
-	return ""
 }
