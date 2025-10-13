@@ -2,49 +2,88 @@
   <img src="./readme/banner.png" alt="Bukt Logo" width="1000">
   <h1 align="center">Bukt</h1>
   <p align="center">
-    A high-performance in-memory key-value store.
+    Bukt is an in-memory key-value store written in Go, built for speed and simplicity, with data organized into lightweight, secure buckets.
   </p>
 </div>
 
 ---
 
-Bukt is a modern key-value store written in Go, designed for speed and simplicity. It provides extremely fast read operations by serving data directly from memory. The current API is primarily designed for handling string data.
-
 ## Project Status
 
-> **Warning**
-> Bukt is currently under active development and should not be used in production environments. The API is subject to change, and the feature set is not yet complete.
+> Bukt is a **conceptual and learning-oriented project** built to explore the internals of high-performance in-memory key-value stores.  
+> It is **not production-ready** and may contain incomplete features or experimental implementations.
 
 
 ## Design Philosophy
 
 -   **Read-Optimized Performance:** Bukt is architected for read-heavy workloads. The data path for retrieving data from memory is highly concurrent and designed to be virtually lock-free, enabling extremely high throughput for read operations.
 
-## Benchmarks
-
-Detailed benchmarks for various workloads (read-heavy, write-heavy, mixed) are underway and will be published soon.
-
 ## Features
 
-- **Bucket Mechanism:** Organize your data into isolated namespaces called buckets.
-- **Sharding:** Keys are automatically distributed across multiple shards to reduce lock contention and improve concurrency on multi-core systems.
-- **Data Compression:** Optional on-the-fly data compression to reduce the storage footprint for large values.
+- **Bucket Mechanism:** Organize your data into isolated namespaces called buckets. Each bucket can be protected with a unique authentication token, ensuring secure data isolation.
 - **Time-to-Live (TTL):** Set an automatic expiration time for your keys. Bukt efficiently manages and removes expired data in the background.
 - **Single-Read Keys:** Create keys that are automatically deleted after being read once, ideal for temporary or single-use data patterns.
 - **Multiple Transport Layers:**
   - **HTTP/REST:** A simple and convenient API for standard web-based interactions.
-  - **TCP & gRPC:** (Planned) For high-performance, low-latency communication between services.
+  - **TCP (Binary Protocol):** Ultra-fast TCP server with binary protocol for high-performance, low-latency communication (using gnet).
+  - **gRPC:** (Planned) For structured service-to-service communication.
 - **Container Ready:** Comes with a setup for quick, isolated deployments.
 
-### Core Architecture
+---
 
-<div align="center">
-  <img src="./readme/schema.png" alt="Bukt Schema" width="600">
-</div>
+## API at a Glance
 
-## Getting Started
+### HTTP/REST API
 
-*(Instructions for building and running the project will be added as the project matures.)*
+The HTTP API provides a simple, stateless interface for managing buckets and key-value pairs. All endpoints are prefixed with `/api/v1`.
+
+#### Buckets
+
+-   **`POST /buckets`**: Creates a new bucket.
+-   **`GET /buckets`**: Lists all available buckets.
+-   **`GET /buckets/{name}`**: Retrieves details for a specific bucket.
+-   **`DELETE /buckets/{name}`**: Deletes a bucket. Requires the bucket's auth token in the body.
+
+#### Key-Value Operations
+
+All key-value operations require an `X-Auth-Token` header containing the authentication token for the bucket.
+
+-   **`POST /kv`**: Stores a new key-value pair.
+-   **`GET /kv/{key}`**: Retrieves the value for a given key.
+-   **`DELETE /kv/{key}`**: Deletes a key-value pair.
+
+### TCP Binary Protocol
+
+For performance-critical applications, the TCP protocol offers lower latency and higher throughput. It uses a custom binary frame format for communication.
+
+#### Frame Structure
+
+`[Length(4)][Command(1)][RequestID(8)][Payload(variable)]`
+
+-   **Length**: Total frame size (header + payload) as a 4-byte unsigned integer.
+-   **Command**: A single byte representing the operation (e.g., `SET`, `GET`, `DELETE`).
+-   **RequestID**: An 8-byte unique identifier for the request, used to correlate responses.
+-   **Payload**: Variable-length data specific to the command.
+
+#### Commands
+
+-   **`SET (0x01)`**: Stores a key-value pair.
+-   **`GET (0x02)`**: Retrieves a key.
+-   **`DELETE (0x03)`**: Deletes a key.
+
+---
+
+## Benchmarks
+
+Benchmarks were run on a single CPU thread with a 95% read ratio.
+
+| Metric | Sequential Mode | Parallel Mode |
+| :--- | :--- | :--- |
+| **Throughput** | `9,584 ops/sec` | `31,972 ops/sec` |
+| **Data Transfer** | `9.36 MB/s` | `31.22 MB/s` |
+| **Average Latency** | `103µs` | `1.5ms` |
+| ↳ Reads | `90,988 (94.9%)` | `304,034 (95.1%)`|
+| ↳ Writes | `4,853 (5.1%)` | `15,725 (4.9%)` |
 
 ---
 

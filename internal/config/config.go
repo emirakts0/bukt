@@ -11,6 +11,7 @@ import (
 const (
 	EnvTokenSecret        = "TOKEN_SECRET"
 	EnvServerPort         = "SERVER_PORT"
+	EnvTCPPort            = "TCP_PORT"
 	EnvLoggingEnvironment = "LOGGING_ENVIRONMENT"
 	EnvLoggingLevel       = "LOGGING_LEVEL"
 	EnvShardCount         = "SHARD_COUNT"
@@ -19,6 +20,7 @@ const (
 const (
 	DefaultTokenSecret        = "" // Will be generated at startup if not provided
 	DefaultServerPort         = 8080
+	DefaultTCPPort            = 9090
 	DefaultLoggingEnvironment = "production"
 	DefaultLoggingLevel       = "info"
 	DefaultShardCount         = 64
@@ -36,7 +38,8 @@ type AuthConfig struct {
 }
 
 type ServerConfig struct {
-	Port int
+	Port    int
+	TCPPort int
 }
 
 type LoggingConfig struct {
@@ -64,7 +67,8 @@ func NewConfig() *Configuration {
 			TokenSecret: tokenSecretBytes,
 		},
 		Server: ServerConfig{
-			Port: getEnvAsInt(EnvServerPort, DefaultServerPort),
+			Port:    getEnvAsInt(EnvServerPort, DefaultServerPort),
+			TCPPort: getEnvAsInt(EnvTCPPort, DefaultTCPPort),
 		},
 		Logging: LoggingConfig{
 			Environment: getEnv(EnvLoggingEnvironment, DefaultLoggingEnvironment),

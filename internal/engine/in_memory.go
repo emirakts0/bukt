@@ -68,17 +68,17 @@ func (s *COWIndexStore) Get(key string) (StorageEntry, bool) {
 		}
 		return StorageEntry{}, false
 	}
+
+	// Update access stats with cached time (no syscall overhead)
 	atomic.AddInt32(&e.AccessCount, 1)
-	atomic.StoreInt64(&e.LastAccess, time.Now().UnixNano())
+	atomic.StoreInt64(&e.LastAccess, util.CachedNow())
+
 	return *e, true
 }
 
 func (s *COWIndexStore) Set(key string, val StorageEntry) {
-	val.LastAccess = time.Now().UnixNano()
+	val.LastAccess = util.CachedNow()
 	val.AccessCount = 0
-	if val.ExpiresAt.IsZero() && val.TTL > 0 && !val.CreatedAt.IsZero() {
-		val.ExpiresAt = val.CreatedAt.Add(time.Duration(val.TTL))
-	}
 
 	s.writeMu.Lock()
 	defer s.writeMu.Unlock()
@@ -101,7 +101,7 @@ func (s *COWIndexStore) Set(key string, val StorageEntry) {
 	var delta int64
 	if found {
 		prev := ns.vals[i]
-		delta -= sizeOf(key, *prev)
+		delta -= sizeOf(key, prev)
 		ns.vals[i] = &val
 	} else {
 		ns.keys = append(ns.keys, "")
@@ -113,7 +113,7 @@ func (s *COWIndexStore) Set(key string, val StorageEntry) {
 		ns.vals[i] = &val
 		atomic.AddInt64(&s.keyCount, 1)
 	}
-	delta += sizeOf(key, val)
+	delta += sizeOf(key, &val)
 
 	newIdx.segments[si] = ns
 	s.ptr.Store(newIdx)
@@ -136,7 +136,8 @@ func (s *COWIndexStore) deleteBatch(keys []string) {
 	newIdx := &Index{segments: make([]Segment, n)}
 	copy(newIdx.segments, old.segments)
 
-	group := map[int][]string{}
+	// Pre-allocate map with capacity hint to reduce allocations
+	group := make(map[int][]string, len(keys)/4+1)
 	for _, k := range keys {
 		si := s.segmentIndexOf(k)
 		group[si] = append(group[si], k)
@@ -155,7 +156,7 @@ func (s *COWIndexStore) deleteBatch(keys []string) {
 				continue
 			}
 			ent := ns.vals[i]
-			delta -= sizeOf(k, *ent)
+			delta -= sizeOf(k, ent)
 			ns.keys = append(ns.keys[:i], ns.keys[i+1:]...)
 			ns.vals = append(ns.vals[:i], ns.vals[i+1:]...)
 			atomic.AddInt64(&s.keyCount, -1)
@@ -194,7 +195,7 @@ func (s *COWIndexStore) Usage() int64 { return atomic.LoadInt64(&s.usedBytes) }
 
 func (s *COWIndexStore) Count() int64 { return atomic.LoadInt64(&s.keyCount) }
 
-func sizeOf(key string, e StorageEntry) int64 { // todo pointer geç buraya
+func sizeOf(key string, e *StorageEntry) int64 {
 	var v int64
 	if e.OriginalSize > 0 {
 		v = e.OriginalSize

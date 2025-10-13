@@ -2,8 +2,8 @@ package gc
 
 import (
 	"container/heap"
+	"key-value-store/internal/util"
 	"sync"
-	"time"
 )
 
 type nearEntry struct {
@@ -60,7 +60,7 @@ func (nq *NearQueue) Add(key string, expireAt int64) bool {
 	nq.mu.Lock()
 	defer nq.mu.Unlock()
 
-	now := time.Now().UnixNano() / 1e6
+	now := util.CachedNow() / 1e6
 	if expireAt/1e6-now > nq.windowMs {
 		return false
 	}
@@ -91,7 +91,7 @@ func (nq *NearQueue) DrainExpired() []string {
 	nq.mu.Lock()
 	defer nq.mu.Unlock()
 
-	now := time.Now().UnixNano() / 1e6
+	now := util.CachedNow() / 1e6
 	var expired []string
 
 	for nq.heap.Len() > 0 {

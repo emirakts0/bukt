@@ -31,22 +31,20 @@ func NewBucketService(bucketManager bucket.BucketManager) IBucketService {
 }
 
 func (s *bucketService) CreateBucket(ctx context.Context, name, description string, shardCount int) (*CreateBucketResult, error) {
-	crrid := util.GetCorrelationID(ctx)
-	slog.Debug("BucketService: Creating bucket", "crr-id", crrid, "name", name, "shard_count", shardCount)
-
 	tokenHex, err := s.bucketManager.CreateBucket(name, description, shardCount)
 	if err != nil {
+		crrid := util.GetCorrelationID(ctx)
 		slog.Error("BucketService: Failed to create bucket", "crr-id", crrid, "name", name, "error", err)
 		return nil, err
 	}
 
 	meta, ok := s.bucketManager.GetBucket(name)
 	if !ok {
+		crrid := util.GetCorrelationID(ctx)
 		slog.Error("BucketService: Bucket not found after creation", "crr-id", crrid, "name", name)
 		return nil, errs.ErrBucketNotFound
 	}
 
-	slog.Info("BucketService: Created bucket", "crr-id", crrid, "name", name, "shard_count", shardCount)
 	return &CreateBucketResult{
 		Metadata:  meta,
 		AuthToken: tokenHex,
@@ -54,12 +52,8 @@ func (s *bucketService) CreateBucket(ctx context.Context, name, description stri
 }
 
 func (s *bucketService) GetBucket(ctx context.Context, name string) (*bucket.BucketMetadata, error) {
-	crrid := util.GetCorrelationID(ctx)
-	slog.Debug("BucketService: Getting bucket", "crr-id", crrid, "name", name)
-
 	meta, ok := s.bucketManager.GetBucket(name)
 	if !ok {
-		slog.Debug("BucketService: Bucket not found", "crr-id", crrid, "name", name)
 		return nil, errs.ErrBucketNotFound
 	}
 
@@ -67,23 +61,17 @@ func (s *bucketService) GetBucket(ctx context.Context, name string) (*bucket.Buc
 }
 
 func (s *bucketService) DeleteBucket(ctx context.Context, name, token string) error {
-	crrid := util.GetCorrelationID(ctx)
-	slog.Debug("BucketService: Deleting bucket", "crr-id", crrid, "name", name)
-
 	err := s.bucketManager.DeleteBucket(name, token)
 	if err != nil {
+		crrid := util.GetCorrelationID(ctx)
 		slog.Error("BucketService: Failed to delete bucket", "crr-id", crrid, "name", name, "error", err)
 		return err
 	}
 
-	slog.Info("BucketService: Deleted bucket", "crr-id", crrid, "name", name)
 	return nil
 }
 
 func (s *bucketService) ListBuckets(ctx context.Context) ([]*bucket.BucketMetadata, error) {
-	crrid := util.GetCorrelationID(ctx)
-	slog.Debug("BucketService: Listing buckets", "crr-id", crrid)
-
 	buckets := s.bucketManager.ListBuckets()
 	return buckets, nil
 }
