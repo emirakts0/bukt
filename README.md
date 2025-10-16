@@ -33,25 +33,6 @@
 
 ## API at a Glance
 
-### HTTP/REST API
-
-The HTTP API provides a simple, stateless interface for managing buckets and key-value pairs. All endpoints are prefixed with `/api/v1`.
-
-#### Buckets
-
--   **`POST /buckets`**: Creates a new bucket.
--   **`GET /buckets`**: Lists all available buckets.
--   **`GET /buckets/{name}`**: Retrieves details for a specific bucket.
--   **`DELETE /buckets/{name}`**: Deletes a bucket. Requires the bucket's auth token in the body.
-
-#### Key-Value Operations
-
-All key-value operations require an `X-Auth-Token` header containing the authentication token for the bucket.
-
--   **`POST /kv`**: Stores a new key-value pair.
--   **`GET /kv/{key}`**: Retrieves the value for a given key.
--   **`DELETE /kv/{key}`**: Deletes a key-value pair.
-
 ### TCP Binary Protocol
 
 For performance-critical applications, the TCP protocol offers lower latency and higher throughput. It uses a custom binary frame format for communication.
@@ -70,6 +51,25 @@ For performance-critical applications, the TCP protocol offers lower latency and
 -   **`SET (0x01)`**: Stores a key-value pair.
 -   **`GET (0x02)`**: Retrieves a key.
 -   **`DELETE (0x03)`**: Deletes a key.
+
+### HTTP/REST API
+
+The HTTP API provides a simple, stateless interface for managing buckets and key-value pairs. All endpoints are prefixed with `/api/v1`.
+
+#### Buckets
+
+-   **`POST /buckets`**: Creates a new bucket.
+-   **`GET /buckets`**: Lists all available buckets.
+-   **`GET /buckets/{name}`**: Retrieves details for a specific bucket.
+-   **`DELETE /buckets/{name}`**: Deletes a bucket. Requires the bucket's auth token in the body.
+
+#### Key-Value Operations
+
+All key-value operations require an `X-Auth-Token` header containing the authentication token for the bucket.
+
+-   **`POST /kv`**: Stores a new key-value pair.
+-   **`GET /kv/{key}`**: Retrieves the value for a given key.
+-   **`DELETE /kv/{key}`**: Deletes a key-value pair.
 
 ---
 
