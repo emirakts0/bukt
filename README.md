@@ -73,15 +73,15 @@ All key-value operations require an `X-Auth-Token` header containing the authent
 
 ---
 
-## Benchmarks
+## Benchmark
 
-Benchmarks were run on a single CPU thread with a 95% read ratio and were also tested over a single connection.
-
-| Metric | Sequential Mode  | Parallel Mode    |
-| :--- |:-----------------|:-----------------|
-| **Throughput** | `10,138 ops/sec` | `24,551 ops/sec` |
-| **Data Transfer** | `9.90 MB/s`      | `23.98 MB/s`     |
-| **Average Latency** | `98µs`           | `121µs`          |
+| Metric              | Value            |
+|:--------------------|:-----------------|
+| **Throughput**      | `24,551 ops/sec` |
+| **Average Latency** | `121µs`          |
+| **CPU Threads**     | `1`              |
+| **Read Ratio**      | `95%`            | 
+| **Connections**     | `1`              |
 
 ---
 
