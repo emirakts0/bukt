@@ -75,15 +75,13 @@ For performance-critical applications, the TCP protocol offers lower latency and
 
 ## Benchmarks
 
-Benchmarks were run on a single CPU thread with a 95% read ratio.
+Benchmarks were run on a single CPU thread with a 95% read ratio and were also tested over a single connection.
 
-| Metric | Sequential Mode | Parallel Mode |
-| :--- | :--- | :--- |
-| **Throughput** | `9,584 ops/sec` | `31,972 ops/sec` |
-| **Data Transfer** | `9.36 MB/s` | `31.22 MB/s` |
-| **Average Latency** | `103µs` | `1.5ms` |
-| ↳ Reads | `90,988 (94.9%)` | `304,034 (95.1%)`|
-| ↳ Writes | `4,853 (5.1%)` | `15,725 (4.9%)` |
+| Metric | Sequential Mode  | Parallel Mode    |
+| :--- |:-----------------|:-----------------|
+| **Throughput** | `10,138 ops/sec` | `24,551 ops/sec` |
+| **Data Transfer** | `9.90 MB/s`      | `23.98 MB/s`     |
+| **Average Latency** | `98µs`           | `121µs`          |
 
 ---
 

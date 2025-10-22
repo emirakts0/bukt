@@ -4,6 +4,7 @@ import (
 	"context"
 	"fmt"
 	"log/slog"
+	"runtime"
 	"sync"
 	"time"
 
@@ -169,16 +170,18 @@ func (s *Server) OnTick() (delay time.Duration, action gnet.Action) {
 
 func (s *Server) Start() error {
 	slog.Info("TCP Server: Starting", "address", s.addr)
+	numCPU := runtime.NumCPU()
+	if numCPU < 8 {
+		numCPU = 8
+	}
 
 	err := gnet.Run(
 		s,
 		s.addr,
 		gnet.WithMulticore(true),
+		gnet.WithNumEventLoop(numCPU),
 		gnet.WithReusePort(true),
-		gnet.WithTCPKeepAlive(time.Minute),
 		gnet.WithTCPNoDelay(gnet.TCPNoDelay),
-		gnet.WithSocketRecvBuffer(256*1024),
-		gnet.WithSocketSendBuffer(256*1024),
 	)
 
 	if err != nil {
