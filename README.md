@@ -16,7 +16,7 @@
 
 ## Design Philosophy
 
--   **Read-Optimized Performance:** Bukt is architected for read-heavy workloads. The data path for retrieving data from memory is highly concurrent and designed to be virtually lock-free, enabling extremely high throughput for read operations.
+-   **Read-Optimized Performance:** Bukt is architected for read-heavy workloads. The data path for retrieving data from memory is highly concurrent and designed to be virtually lock-free at its core layer.
 
 ## Features
 
