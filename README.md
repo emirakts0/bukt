@@ -73,17 +73,6 @@ All key-value operations require an `X-Auth-Token` header containing the authent
 
 ---
 
-## Benchmark
-
-| Metric              | Value            |
-|:--------------------|:-----------------|
-| **Throughput**      | `24,551 ops/sec` |
-| **Average Latency** | `121µs`          |
-| **CPU Threads**     | `1`              |
-| **Read Ratio**      | `95%`            | 
-| **Connections**     | `1`              |
-
----
 
 <p align="center">
   <em>Inspired by the concept of "buckets" for data organization.</em>
