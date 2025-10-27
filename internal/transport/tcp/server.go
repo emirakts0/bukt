@@ -1,207 +1,187 @@
 package tcp
 
 import (
+	"bufio"
 	"context"
-	"fmt"
+	"errors"
 	"log/slog"
-	"runtime"
+	"net"
 	"sync"
 	"time"
-
-	"github.com/panjf2000/gnet/v2"
 )
 
 const (
-	MaxConnectionBufferSize = 17 * 1024 * 1024
-	InitialBufferCapacity   = 4096
+	MaxConnectionBuffSize = 17 << 20
+	readChunkSize         = 64 << 10 // 64 kb
+	readerBufSize         = 32 << 10
 )
 
-var bufferPool = sync.Pool{
-	New: func() interface{} {
-		buf := make([]byte, 0, InitialBufferCapacity)
-		return &buf
-	},
+type StdServer struct {
+	addr           string
+	handler        *Handler
+	ln             net.Listener
+	wg             sync.WaitGroup
+	mu             sync.Mutex
+	stop           bool
+	AcceptDeadline time.Duration
+	ReadTimeout    time.Duration
+	WriteTimeout   time.Duration
 }
 
-type Server struct {
-	gnet.BuiltinEventEngine
-
-	eng        gnet.Engine
-	addr       string
-	handler    *Handler
-	isRunning  bool
-	runningMu  sync.RWMutex
-	workerPool chan struct{}
+func NewServer(addr string, h *Handler) *StdServer {
+	return &StdServer{addr: addr, handler: h}
 }
 
-type connState struct {
-	buffer []byte
+var tmpPool = sync.Pool{
+	New: func() any { b := make([]byte, readChunkSize); return &b },
+}
+var bufPool = sync.Pool{
+	New: func() any { b := make([]byte, 0, readerBufSize); return &b },
 }
 
-func NewServer(addr string, handler *Handler) *Server {
-	poolSize := 256
-
-	return &Server{
-		addr:       addr,
-		handler:    handler,
-		workerPool: make(chan struct{}, poolSize),
-	}
-}
-
-func (s *Server) OnBoot(eng gnet.Engine) gnet.Action {
-	s.eng = eng
-	s.runningMu.Lock()
-	s.isRunning = true
-	s.runningMu.Unlock()
-	slog.Info("TCP Server: Booted", "address", s.addr)
-	return gnet.None
-}
-
-func (s *Server) OnOpen(c gnet.Conn) ([]byte, gnet.Action) {
-	bufPtr := bufferPool.Get().(*[]byte)
-	*bufPtr = (*bufPtr)[:0]
-
-	c.SetContext(&connState{
-		buffer: *bufPtr,
-	})
-
-	return nil, gnet.None
-}
-
-func (s *Server) OnClose(c gnet.Conn, err error) gnet.Action {
-	if ctx := c.Context(); ctx != nil {
-		if state, ok := ctx.(*connState); ok {
-			bufferPool.Put(&state.buffer)
-		}
-	}
-
-	return gnet.None
-}
-
-func (s *Server) OnTraffic(c gnet.Conn) gnet.Action {
-	ctx := c.Context()
-	if ctx == nil {
-		slog.Error("TCP Server: Connection context not found")
-		return gnet.Close
-	}
-
-	state, ok := ctx.(*connState)
-	if !ok {
-		slog.Error("TCP Server: Invalid connection context type")
-		return gnet.Close
-	}
-
-	buf, err := c.Next(-1)
+func (s *StdServer) Start() error {
+	ln, err := net.Listen("tcp", s.addr)
 	if err != nil {
-		slog.Error("TCP Server: Failed to read data", "error", err)
-		return gnet.Close
+		return err
 	}
+	s.mu.Lock()
+	s.ln = ln
+	s.mu.Unlock()
 
-	if len(state.buffer)+len(buf) > MaxConnectionBufferSize {
-		slog.Warn("TCP Server: Connection buffer overflow",
-			"remote", c.RemoteAddr().String(),
-			"current_size", len(state.buffer),
-			"incoming_size", len(buf),
-			"max_size", MaxConnectionBufferSize)
-		return gnet.Close
-	}
-
-	state.buffer = append(state.buffer, buf...)
-
-	for {
-		if len(state.buffer) < HeaderSize {
-			break
-		}
-
-		frame, err := DecodeFrame(state.buffer)
-		if err != nil {
-			if err == ErrIncompleteFrame {
-				break
+	s.wg.Add(1)
+	go func() {
+		defer s.wg.Done()
+		tl, _ := ln.(*net.TCPListener)
+		for {
+			if s.AcceptDeadline > 0 && tl != nil {
+				_ = tl.SetDeadline(time.Now().Add(s.AcceptDeadline))
 			}
-			slog.Error("TCP Server: Invalid frame", "error", err, "remote", c.RemoteAddr().String())
-			return gnet.Close
-		}
-
-		select {
-		case s.workerPool <- struct{}{}:
-			frameCopy := &Frame{
-				Length:    frame.Length,
-				Command:   frame.Command,
-				RequestID: frame.RequestID,
-				Payload:   make([]byte, len(frame.Payload)),
-			}
-			copy(frameCopy.Payload, frame.Payload)
-
-			go func() {
-				defer func() {
-					<-s.workerPool
-				}()
-
-				responseFrame := s.handler.HandleFrame(frameCopy)
-
-				responseData := responseFrame.Encode()
-				if err := c.AsyncWrite(responseData, nil); err != nil {
+			conn, err := ln.Accept()
+			if err != nil {
+				var ne net.Error
+				if errors.As(err, &ne) && ne.Timeout() {
+					continue
+				}
+				s.mu.Lock()
+				stopped := s.stop
+				s.mu.Unlock()
+				if stopped {
 					return
 				}
-			}()
-
-		default:
-			responseFrame := s.handler.HandleFrame(frame)
-			responseData := responseFrame.Encode()
-			if err := c.AsyncWrite(responseData, nil); err != nil {
-				slog.Error("TCP Server: Failed to write response", "error", err)
-				return gnet.Close
+				slog.Error("stdtcp: accept error", "error", err)
+				return
 			}
+			s.wg.Add(1)
+			go func(c net.Conn) {
+				defer s.wg.Done()
+				s.handleConn(c)
+			}(conn)
 		}
+	}()
 
-		state.buffer = state.buffer[frame.Length:]
-	}
-
-	return gnet.None
-}
-
-func (s *Server) OnShutdown(eng gnet.Engine) {
-	slog.Info("TCP Server: Shutting down")
-}
-
-func (s *Server) OnTick() (delay time.Duration, action gnet.Action) {
-	return 10 * time.Second, gnet.None
-}
-
-func (s *Server) Start() error {
-	slog.Info("TCP Server: Starting", "address", s.addr)
-	numCPU := runtime.NumCPU()
-	if numCPU < 8 {
-		numCPU = 8
-	}
-
-	err := gnet.Run(
-		s,
-		s.addr,
-		gnet.WithMulticore(true),
-		gnet.WithNumEventLoop(numCPU),
-		gnet.WithReusePort(true),
-		gnet.WithTCPNoDelay(gnet.TCPNoDelay),
-	)
-
-	if err != nil {
-		return fmt.Errorf("failed to start TCP server: %w", err)
-	}
-
+	slog.Info("stdtcp: listening", "addr", s.addr)
 	return nil
 }
 
-func (s *Server) Stop(ctx context.Context) error {
-	slog.Info("TCP Server: Stopping")
-
-	s.runningMu.RLock()
-	running := s.isRunning
-	s.runningMu.RUnlock()
-
-	if !running {
-		slog.Debug("TCP Server: Already stopped or not started")
+func (s *StdServer) Stop(ctx context.Context) error {
+	s.mu.Lock()
+	if s.stop {
+		s.mu.Unlock()
 		return nil
 	}
+	s.stop = true
+	ln := s.ln
+	s.mu.Unlock()
+	if ln != nil {
+		_ = ln.Close()
+	}
+	done := make(chan struct{})
+	go func() { s.wg.Wait(); close(done) }()
+	select {
+	case <-done:
+		return nil
+	case <-ctx.Done():
+		return ctx.Err()
+	}
+}
 
-	return s.eng.Stop(ctx)
+func (s *StdServer) handleConn(c net.Conn) {
+	defer c.Close()
+
+	if tc, ok := c.(*net.TCPConn); ok {
+		_ = tc.SetKeepAlive(true)
+		_ = tc.SetKeepAlivePeriod(2 * time.Minute)
+	}
+
+	br := bufio.NewReaderSize(c, readerBufSize)
+	bufPtr := bufPool.Get().(*[]byte)
+	tmpPtr := tmpPool.Get().(*[]byte)
+	buf := *bufPtr
+	tmp := *tmpPtr
+	defer func() {
+		*bufPtr = buf[:0]
+		bufPool.Put(bufPtr)
+		tmpPool.Put(tmpPtr)
+	}()
+
+	for {
+		if s.ReadTimeout > 0 {
+			_ = c.SetReadDeadline(time.Now().Add(s.ReadTimeout))
+		}
+		n, err := br.Read(tmp)
+		if err != nil {
+			var ne net.Error
+			if errors.As(err, &ne) && ne.Timeout() {
+				return
+			}
+			return
+		}
+		if len(buf)+n > MaxConnectionBuffSize {
+			slog.Warn("stdtcp: buffer overflow", "remote", c.RemoteAddr().String())
+			return
+		}
+		buf = append(buf, tmp[:n]...)
+
+		for {
+			if len(buf) < HeaderSize {
+				break
+			}
+			frameLen := int(binaryBEUint32(buf[0:4]))
+			if frameLen > HeaderSize+MaxPayloadSize {
+				slog.Error("stdtcp: oversized frame", "remote", c.RemoteAddr().String())
+				return
+			}
+			if len(buf) < frameLen {
+				break
+			}
+			cmd := buf[4]
+			reqID := binaryBEUint64(buf[5:13])
+			payload := buf[HeaderSize:frameLen]
+
+			f := &Frame{Length: uint32(frameLen), Command: cmd, RequestID: reqID, Payload: payload}
+
+			resp := s.handler.HandleFrame(f)
+			if s.WriteTimeout > 0 {
+				_ = c.SetWriteDeadline(time.Now().Add(s.WriteTimeout))
+			}
+			if _, err := c.Write(resp.Encode()); err != nil {
+				return
+			}
+
+			buf = buf[frameLen:]
+			if len(buf) == 0 {
+				break
+			}
+		}
+	}
+}
+
+func binaryBEUint32(b []byte) uint32 {
+	_ = b[3]
+	return uint32(b[0])<<24 | uint32(b[1])<<16 | uint32(b[2])<<8 | uint32(b[3])
+}
+func binaryBEUint64(b []byte) uint64 {
+	_ = b[7]
+	return uint64(b[0])<<56 | uint64(b[1])<<48 | uint64(b[2])<<40 | uint64(b[3])<<32 |
+		uint64(b[4])<<24 | uint64(b[5])<<16 | uint64(b[6])<<8 | uint64(b[7])
 }

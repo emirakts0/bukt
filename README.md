@@ -25,7 +25,7 @@
 - **Single-Read Keys:** Create keys that are automatically deleted after being read once, ideal for temporary or single-use data patterns.
 - **Multiple Transport Layers:**
   - **HTTP/REST:** A simple and convenient API for standard web-based interactions.
-  - **TCP (Binary Protocol):** Ultra-fast TCP server with binary protocol for high-performance, low-latency communication (using gnet).
+  - **TCP (Binary Protocol):** Fast TCP server with binary protocol for high-performance, low-latency communication.
   - **gRPC:** (Planned) For structured service-to-service communication.
 - **Container Ready:** Comes with a setup for quick, isolated deployments.
 
@@ -72,7 +72,6 @@ All key-value operations require an `X-Auth-Token` header containing the authent
 -   **`DELETE /kv/{key}`**: Deletes a key-value pair.
 
 ---
-
 
 <p align="center">
   <em>Inspired by the concept of "buckets" for data organization.</em>

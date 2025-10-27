@@ -57,10 +57,9 @@ func main() {
 
 	// Create TCP handler and server
 	tcpHandler := tcp.NewHandler(storageService)
-	tcpAddr := "tcp://:" + strconv.Itoa(configs.Server.TCPPort)
+	tcpAddr := ":" + strconv.Itoa(configs.Server.TCPPort)
 	tcpServer := tcp.NewServer(tcpAddr, tcpHandler)
 
-	// Start TCP server in goroutine
 	go func() {
 		slog.Info("TCP Server starting", "address", tcpAddr)
 		if err := tcpServer.Start(); err != nil {
